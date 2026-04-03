@@ -1,0 +1,1617 @@
+/********************************************************************************
+ * Copyright: SELab.AI (c) 2026
+ ********************************************************************************/
+/* SysML Editor Styles */
+
+/* ========================================
+ * PropertyPanel Styles (Core/Advanced 탭)
+ * ======================================== */
+
+/* 속성 패널 섹션 */
+.property-panel-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--vscode-panel-border);
+}
+
+.property-panel-header {
+    margin-bottom: 12px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+}
+
+.property-panel-container {
+    display: block;
+}
+
+/* 헤더 - 타입별 Properties 타이틀 (SysON 스타일) */
+.property-header {
+    padding: 10px 12px 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--vscode-foreground);
+}
+
+/* 탭 버튼 - SysON 스타일 */
+.property-tab-buttons {
+    display: flex;
+    gap: 0;
+    margin: 0;
+    padding: 0 12px;
+    border-bottom: 2px solid var(--vscode-panel-border);
+    background-color: var(--vscode-editor-background);
+}
+
+.property-tab-button {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+    transition: all 0.2s;
+    opacity: 0.7;
+    margin-bottom: -2px;
+}
+
+.property-tab-button:hover {
+    opacity: 1;
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.property-tab-button.active {
+    opacity: 1;
+    border-bottom-color: var(--vscode-focusBorder);
+    color: var(--vscode-focusBorder);
+    font-weight: 600;
+}
+
+/* 탭 콘텐츠 */
+.property-tab-contents {
+    position: relative;
+}
+
+.property-tab-content {
+    display: none;
+    padding: 12px;
+}
+
+.property-tab-content.active {
+    display: block;
+}
+
+/* 속성 그룹 */
+.property-group {
+    margin-bottom: 8px;
+    padding: 0;
+}
+
+/* 속성 그룹 헤더 (Advanced 탭 섹션 구분) */
+.property-group-header {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--vscode-descriptionForeground, #888);
+    padding: 8px 0 3px 0;
+    margin-top: 4px;
+    border-top: 1px solid var(--vscode-widget-border, #444);
+}
+.property-group-header:first-child {
+    margin-top: 0;
+    border-top: none;
+}
+
+.property-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--vscode-foreground);
+    opacity: 0.9;
+}
+
+/* Inline 표시 (라벨 + 값 한 줄) */
+.property-inline {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+.property-inline .property-label {
+    display: inline;
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+
+.property-inline-value {
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+    word-break: break-all;
+}
+
+/* Text 입력 */
+.property-input {
+    width: 100%;
+    padding: 4px 8px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    font-size: 12px;
+    box-sizing: border-box;
+}
+
+.property-input:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+}
+
+.property-input.property-readonly {
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-descriptionForeground);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Textarea */
+.property-textarea {
+    width: 100%;
+    padding: 6px 8px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family);
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.property-textarea:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+}
+
+.property-textarea.property-readonly {
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-descriptionForeground);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Checkbox - SysON 스타일 */
+.property-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    cursor: pointer;
+}
+
+.property-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--vscode-focusBorder);
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.property-checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.property-checkbox-label {
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    user-select: none;
+}
+
+/* Radio 버튼 그룹 */
+.property-radio-group {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 4px 0;
+}
+
+.property-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 0;
+}
+
+.property-radio {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--vscode-focusBorder);
+}
+
+.property-radio:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.property-radio-label:hover {
+    color: var(--vscode-list-hoverForeground);
+}
+
+/* Reference 링크 */
+.property-reference {
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+.property-reference-link {
+    color: var(--vscode-textLink-foreground);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.property-reference-link:hover {
+    color: var(--vscode-textLink-activeForeground);
+}
+
+/* 빈 상태 */
+.property-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+/* 에러 상태 */
+.property-error {
+    padding: 12px;
+    background-color: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* 에지 속성 패널 - Source/Target 노드 행 */
+.property-edge-node-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.property-edge-node-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    padding: 3px 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.property-edge-nav-btn {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    background: var(--vscode-button-secondaryBackground, transparent);
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-button-border, var(--vscode-widget-border));
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.property-edge-nav-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+}
+
+/* Edge Tag Select 위젯 (Subset/Redefine) */
+.property-edge-tag-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.property-edge-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.property-edge-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: var(--vscode-badge-background, #4d4d4d);
+    color: var(--vscode-badge-foreground, #fff);
+    border-radius: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.property-edge-tag-remove {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+    opacity: 0.7;
+    margin-left: 2px;
+}
+
+.property-edge-tag-remove:hover {
+    opacity: 1;
+    color: var(--vscode-errorForeground, #f44);
+}
+
+.property-edge-tag-select {
+    width: 100%;
+    padding: 3px 6px;
+    font-size: 12px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    outline: none;
+}
+
+.property-edge-tag-select:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.property-edge-tag-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 색상 지정 섹션 */
+.property-color-section {
+    margin-top: 4px;
+}
+
+.property-color-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.property-color-row .property-label {
+    margin-bottom: 0;
+    flex: 1;
+}
+
+.property-color-input {
+    width: 36px;
+    height: 24px;
+    padding: 1px 2px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    background: var(--vscode-input-background);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+html {
+    height: 100%;
+    min-height: 100vh;
+    /* fallback for hosts that don't propagate percentage heights */
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-editor-background);
+    margin: 0;
+    padding: 0;
+    /* Use percentage heights for better compatibility with Theia webview iframes */
+    height: 100%;
+    min-height: 100vh;
+    /* ensure body occupies iframe viewport */
+    overflow: hidden;
+}
+
+.editor-container {
+    display: flex;
+    /* Avoid viewport units which can compute to zero in some webview hosts */
+    height: 100%;
+    min-height: 100vh;
+    /* fallback to guarantee visibility */
+    width: 100%;
+}
+
+.editor-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--vscode-panel-border);
+    min-width: 0;
+}
+
+.editor-panel:last-child {
+    border-right: none;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: var(--vscode-panel-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    min-height: 40px;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-panelTitle-activeForeground);
+}
+
+.code-editor,
+.diagram-editor {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+#codeTextarea {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 12px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    line-height: var(--vscode-editor-line-height);
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    box-sizing: border-box;
+}
+
+#codeTextarea:focus {
+    background-color: var(--vscode-editor-background);
+}
+
+.diagram-editor {
+    background-color: var(--vscode-editor-background);
+    position: relative;
+    min-height: 240px;
+    /* visible even before layout/model arrives */
+}
+
+#diagramEditor.pan-mode {
+    cursor: grab;
+}
+
+#diagramSvg {
+    background-color: var(--vscode-editor-background);
+    border: none;
+}
+
+.mxgraph-empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: var(--vscode-descriptionForeground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.mxgraph-empty-state.is-hidden {
+    display: none;
+}
+
+/* Diagram elements */
+.diagram-element {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.diagram-element:hover {
+    filter: brightness(1.1);
+}
+
+.diagram-element.selected {
+    filter: brightness(1.2);
+}
+
+.diagram-element.selected .diagram-node {
+    stroke: var(--vscode-focusBorder);
+    stroke-width: 4px;
+    filter: drop-shadow(0 0 12px var(--vscode-focusBorder)) drop-shadow(0 0 4px var(--vscode-focusBorder));
+    fill: var(--vscode-list-activeSelectionBackground, rgba(0, 122, 204, 0.15));
+    animation: pulse-selection 2s ease-in-out infinite;
+}
+
+.diagram-element.selected .diagram-text {
+    font-weight: 700;
+    fill: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+
+@keyframes pulse-selection {
+
+    0%,
+    100% {
+        stroke-width: 4px;
+    }
+
+    50% {
+        stroke-width: 5px;
+    }
+}
+
+.diagram-node {
+    fill: var(--vscode-editorWidget-background);
+    stroke: var(--vscode-input-border);
+    stroke-width: 1.5px;
+    rx: 6px;
+}
+
+.diagram-node.container {
+    /* Use a safe fill compatible with VS Code webview; avoid color-mix */
+    fill: var(--vscode-editorWidget-background);
+    stroke: var(--vscode-focusBorder);
+    stroke-width: 2px;
+}
+
+.diagram-node.action-definition-node,
+.diagram-node.container.action-definition-node {
+    stroke: orange;
+}
+
+.diagram-node.action-usage-node,
+.diagram-node.container.action-usage-node {
+    stroke: orange;
+}
+
+/* Container header band drawn after nodes so it's always on top */
+.container-header {
+    fill: none;
+    /* don't hide children under header */
+    stroke: none;
+}
+
+.container-title {
+    fill: var(--vscode-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    font-weight: 600;
+    text-anchor: start;
+    dominant-baseline: hanging;
+}
+
+.diagram-text {
+    fill: var(--vscode-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+}
+
+.diagram-label {
+    fill: var(--vscode-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    font-weight: 600;
+    text-anchor: start;
+    dominant-baseline: hanging;
+}
+
+.diagram-connection {
+    stroke: var(--vscode-foreground);
+    stroke-width: 1.5px;
+    fill: none;
+    /* marker-end는 JavaScript에서 동적으로 설정 (applyConnectionMarker) */
+    cursor: pointer;
+}
+
+.diagram-connection:hover {
+    stroke: var(--vscode-focusBorder);
+    stroke-width: 3px;
+}
+
+.diagram-connection.selected {
+    stroke: var(--vscode-focusBorder);
+    stroke-width: 5px;
+    filter: drop-shadow(0 0 10px var(--vscode-focusBorder)) drop-shadow(0 0 4px var(--vscode-focusBorder));
+    animation: pulse-connection 2s ease-in-out infinite;
+}
+
+@keyframes pulse-connection {
+
+    0%,
+    100% {
+        stroke-width: 5px;
+    }
+
+    50% {
+        stroke-width: 6px;
+    }
+}
+
+/* Relationship-specific edge styles */
+.conjugation-edge {
+    stroke: var(--vscode-charts-purple, #c586c0);
+    stroke-width: 1.5px;
+}
+
+.disjoining-edge {
+    stroke: var(--vscode-charts-orange, #ce9178);
+    stroke-width: 3px;
+    stroke-linecap: round;
+}
+
+/* Connector-specific edge styles */
+.binding-edge {
+    stroke: var(--vscode-charts-blue, #0066cc);
+    stroke-width: 1.5px;
+}
+
+.binding-edge:hover {
+    stroke: var(--vscode-charts-blue, #0088ff);
+    stroke-width: 2.5px;
+}
+
+.flow-edge {
+    stroke: var(--vscode-charts-green, #009900);
+    stroke-width: 2px;
+}
+
+.flow-edge:hover {
+    stroke: var(--vscode-charts-green, #00cc00);
+    stroke-width: 3px;
+}
+
+.controlflow-edge {
+    stroke: var(--vscode-charts-orange, #cc6600);
+    stroke-width: 1.5px;
+}
+
+.controlflow-edge:hover {
+    stroke: var(--vscode-charts-orange, #ff8800);
+    stroke-width: 2.5px;
+}
+
+/* Transition edge (State Machine transitions) - 실선으로 표시 */
+.transition-edge {
+    stroke: #ffffff !important;
+    stroke-width: 1.5px;
+    stroke-dasharray: none !important;
+    /* 강제로 실선 */
+}
+
+.transition-edge:hover {
+    stroke: var(--vscode-focusBorder);
+    stroke-width: 2.5px;
+}
+
+/* Succession edge - 실선 + 채워진 삼각형 */
+.succession-edge {
+    stroke: #ffffff;
+    stroke-width: 2px;
+    stroke-dasharray: none;
+}
+
+.succession-edge:hover {
+    stroke: var(--vscode-focusBorder);
+    stroke-width: 2.5px;
+}
+
+.connection-edge {
+    stroke: var(--vscode-foreground, #666666);
+    stroke-width: 2px;
+}
+
+.connection-edge:hover {
+    stroke: var(--vscode-foreground, #888888);
+    stroke-width: 3px;
+}
+
+/* Connection validation highlights */
+.diagram-element.connect-valid .diagram-node {
+    stroke: var(--vscode-terminal-ansiGreen, #22c55e);
+    stroke-width: 2px;
+}
+
+.diagram-element.connect-invalid .diagram-node {
+    stroke: var(--vscode-errorForeground, #ef4444);
+    stroke-width: 2px;
+}
+
+/* Ports */
+.diagram-port {
+    fill: var(--vscode-input-background);
+    stroke: var(--vscode-focusBorder);
+    stroke-width: 1.5px;
+    pointer-events: all;
+}
+
+.diagram-port:hover {
+    fill: var(--vscode-focusBorder);
+}
+
+/* Port kind colors */
+.diagram-port[data-kind='power'],
+.diagram-port[data-kind='electrical'] {
+    stroke: #ef4444;
+    /* red */
+    fill: #fee2e2;
+}
+
+.diagram-port[data-kind='signal'],
+.diagram-port[data-kind='data'],
+.diagram-port[data-kind='info'] {
+    stroke: #3b82f6;
+    /* blue */
+    fill: #dbeafe;
+}
+
+.diagram-port[data-kind='mechanical'] {
+    stroke: #92400e;
+    /* brown */
+    fill: #fef3c7;
+}
+
+.diagram-port[data-kind='hydraulic'] {
+    stroke: #0ea5e9;
+    /* cyan */
+    fill: #cffafe;
+}
+
+.diagram-port[data-kind='flow'] {
+    stroke: #16a34a;
+    /* green */
+    fill: #dcfce7;
+}
+
+/* Compartments */
+.comp-sep {
+    stroke: var(--vscode-panel-border);
+    stroke-width: 1px;
+}
+
+.comp-header {
+    fill: var(--vscode-descriptionForeground);
+    font-size: 12px;
+    dominant-baseline: hanging;
+}
+
+.comp-item {
+    fill: var(--vscode-foreground);
+    font-size: 12px;
+    dominant-baseline: hanging;
+}
+
+.comp-toggle {
+    fill: var(--vscode-foreground);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    pointer-events: all;
+}
+
+/* IfActionUsage branch labels (then:/else:) */
+.if-branch-label {
+    fill: #FFA500;
+    /* 주황색 */
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    font-weight: bold;
+    dominant-baseline: hanging;
+    pointer-events: none;
+}
+
+/* IfActionUsage guard condition text */
+.if-guard-text {
+    fill: #888888;
+    /* 회색 */
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    font-style: italic;
+    dominant-baseline: hanging;
+    pointer-events: none;
+}
+
+/* Edge labels */
+.edge-label {
+    fill: var(--vscode-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 11px;
+    dominant-baseline: hanging;
+    cursor: move;
+}
+
+/* Ghost connection while dragging */
+.ghost-connection {
+    stroke: var(--vscode-descriptionForeground);
+    stroke-dasharray: 4 4;
+    stroke-width: 1.5px;
+    fill: none;
+    pointer-events: none;
+}
+
+/* Alignment guides */
+.align-guide {
+    stroke: var(--vscode-focusBorder);
+    stroke-opacity: 0.5;
+    stroke-width: 1px;
+    shape-rendering: crispEdges;
+    pointer-events: none;
+}
+
+/* Lasso selection */
+.lasso-rect {
+    fill: rgba(100, 150, 250, 0.1);
+    stroke: var(--vscode-focusBorder);
+    stroke-dasharray: 4 4;
+    stroke-width: 1px;
+    pointer-events: none;
+}
+
+/* Inline editing overlay */
+.inline-editor {
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    box-shadow: 0 0 0 1px var(--vscode-focusBorder) inset;
+    padding: 2px 4px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    z-index: 10;
+}
+
+/* Toolbar */
+.arrowhead {
+    fill: var(--vscode-foreground);
+}
+
+.diagram-toolbar {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: var(--vscode-panel-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 999px;
+    padding: 6px 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    z-index: 6;
+}
+
+.toolbar-button {
+    background-color: transparent;
+    color: var(--vscode-foreground);
+    border: 1px solid transparent;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.toolbar-button:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+    border-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.toolbar-button:active {
+    background-color: var(--vscode-button-activeBackground);
+}
+
+.toolbar-button.is-active {
+    background-color: var(--vscode-toolbar-hoverBackground);
+    border-color: var(--vscode-focusBorder);
+}
+
+.toolbar-sep {
+    width: 1px;
+    height: 18px;
+    background: var(--vscode-panel-border);
+    display: inline-block;
+    margin: 0 2px;
+}
+
+.toolbar-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: var(--vscode-editorWidget-background);
+    color: var(--vscode-foreground);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 6px 28px 6px 10px;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.toolbar-select:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+}
+
+/* Loading state */
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+/* Error state */
+.error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--vscode-errorForeground);
+    padding: 20px;
+    text-align: center;
+}
+
+/* Responsive design */
+@media (max-width: 800px) {
+    .editor-container {
+        flex-direction: column;
+    }
+
+    .editor-panel {
+        border-right: none;
+        border-bottom: 1px solid var(--vscode-panel-border);
+    }
+
+    .editor-panel:last-child {
+        border-bottom: none;
+    }
+}
+
+/* Attributes Panel */
+.attributes-panel {
+    border-left: 1px solid var(--vscode-panel-border);
+    border-right: none;
+}
+
+/* Hidden state for the attributes panel (toggled by JS) */
+.attributes-panel.hidden {
+    display: none;
+}
+
+/* 속성창 숨김 시 리사이즈 핸들도 숨김 */
+.panel-resize-handle.hidden {
+    display: none;
+}
+
+.attributes-content {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 10px;
+    background: var(--vscode-editorWidget-background);
+}
+
+.attr-header {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 8px;
+}
+
+.attr-empty {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+    padding: 8px 0;
+}
+
+.attr-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--vscode-panel-border);
+}
+
+.attr-group label {
+    font-size: 12px;
+    color: var(--vscode-foreground);
+}
+
+.attr-group input[type='text'],
+.attr-group input[type='number'],
+.attr-group select {
+    width: 100%;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+.attr-props {
+    margin-top: 6px;
+}
+
+.attr-props-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.attr-props-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.attr-prop-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+}
+
+.btn-small {
+    background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.btn-small:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.btn-icon {
+    background: transparent;
+    color: var(--vscode-foreground);
+    border: 1px solid var(--vscode-toolbar-hoverBackground);
+    width: 24px;
+    height: 24px;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.btn-icon:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Minimap */
+.minimap {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    background: var(--vscode-panel-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    padding: 4px;
+    z-index: 5;
+}
+
+#minimapSvg {
+    display: block;
+    background: var(--vscode-editor-background);
+}
+
+.minimap-viewport {
+    stroke: var(--vscode-focusBorder);
+    fill: transparent;
+    stroke-width: 1px;
+}
+
+/* Type glyphs */
+.type-glyph {
+    fill: var(--vscode-editorWidget-background);
+    stroke: var(--vscode-foreground);
+    stroke-width: 1px;
+    pointer-events: none;
+}
+
+/* Definition 타입 스타일 (각진 사각형, 파란색 계열) */
+.type-definition {
+    stroke: #2196f3 !important;
+    stroke-width: 2px !important;
+    fill: #bbdefb !important;
+}
+
+.type-action-definition {
+    stroke: #ff9800 !important;
+    stroke-width: 2px !important;
+    fill: #ffe0b2 !important;
+}
+
+.type-requirement-definition {
+    stroke: #9c27b0 !important;
+    stroke-width: 2px !important;
+    fill: #e1bee7 !important;
+}
+
+.type-interface-definition {
+    stroke: #00bcd4 !important;
+    stroke-width: 2px !important;
+    fill: #b2ebf2 !important;
+}
+
+.type-constraint-definition {
+    stroke: #795548 !important;
+    stroke-width: 2px !important;
+    fill: #d7ccc8 !important;
+}
+
+/* Usage 타입 스타일 (둥근 사각형, 초록색 계열) */
+.type-usage {
+    stroke: #4caf50 !important;
+    stroke-width: 1.5px !important;
+    fill: #c8e6c9 !important;
+}
+
+.type-part-usage {
+    stroke: #4caf50 !important;
+    stroke-width: 1.5px !important;
+    fill: #c8e6c9 !important;
+}
+
+.type-action-usage {
+    stroke: #ff5722 !important;
+    stroke-width: 2px !important;
+    fill: #ffccbc !important;
+}
+
+.type-requirement-usage {
+    stroke: #673ab7 !important;
+    stroke-width: 1.5px !important;
+    fill: #d1c4e9 !important;
+}
+
+.type-interface-usage {
+    stroke: #009688 !important;
+    stroke-width: 1.5px !important;
+    fill: #b2dfdb !important;
+}
+
+/* Package 스타일 */
+.type-package {
+    stroke: #607d8b !important;
+    stroke-width: 1.5px !important;
+    fill: #cfd8dc !important;
+}
+
+/* Activity diagram basics (Option A) */
+.act-initial {
+    fill: var(--vscode-foreground, #000);
+    stroke: none;
+}
+
+.act-decision {
+    fill: var(--vscode-charts-yellow, #ffd700);
+    stroke: var(--vscode-input-border, #888);
+    stroke-width: 2px;
+}
+
+.act-merge {
+    fill: var(--vscode-charts-purple, #9370db);
+    stroke: var(--vscode-input-border, #888);
+    stroke-width: 2px;
+}
+
+.act-fork {
+    fill: var(--vscode-charts-blue, #4fc3f7);
+    stroke: none;
+}
+
+.act-join {
+    fill: var(--vscode-charts-green, #66bb6a);
+    stroke: none;
+}
+
+.act-final-outer {
+    fill: none;
+    stroke: var(--vscode-foreground, #000);
+    stroke-width: 2px;
+}
+
+.act-final-inner {
+    fill: var(--vscode-foreground, #000);
+    stroke: none;
+}
+
+.act-edge.control {
+    stroke: var(--vscode-foreground);
+}
+
+.act-edge.object {
+    stroke: var(--vscode-focusBorder);
+}
+
+/* Documentation/Comment 노드 스타일 */
+.node-documentation,
+.node-comment {
+    cursor: pointer;
+}
+
+.node-documentation:hover,
+.node-comment:hover {
+    filter: brightness(0.95);
+}
+
+.annotation-type {
+    font-size: 10px;
+    font-style: italic;
+    fill: #666;
+}
+
+.annotation-body-preview {
+    font-size: 10px;
+    font-family: monospace;
+    fill: #666;
+}
+
+/* ========================================
+ * Textual View Styles (SysML 소스 코드 뷰어)
+ * ======================================== */
+
+/* 상단 툴바 */
+.textual-view-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--vscode-panel-border, #ddd);
+    margin-bottom: 8px;
+}
+
+.textual-view-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.textual-view-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-textLink-foreground, #0078d4);
+}
+
+.textual-view-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    background-color: var(--vscode-textLink-foreground, #0078d4);
+    border-radius: 10px;
+    line-height: 1.6;
+}
+
+.textual-view-btn-group {
+    display: flex;
+    gap: 4px;
+}
+
+.textual-view-btn {
+    background: transparent;
+    border: 1px solid var(--vscode-panel-border, #ccc);
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--vscode-foreground, #333);
+    line-height: 1;
+}
+
+.textual-view-btn:hover {
+    background-color: var(--vscode-list-hoverBackground, #f0f0f0);
+}
+
+/* 코드 영역 */
+.textual-view-wrapper {
+    overflow: auto;
+    max-height: calc(100vh - 260px);
+    border: 1px solid var(--vscode-panel-border, #ddd);
+    border-radius: 6px;
+    background-color: var(--vscode-editor-background, #fff);
+}
+
+.textual-view-pre {
+    margin: 0;
+    padding: 12px 16px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+    tab-size: 4;
+    color: var(--vscode-editor-foreground, #333);
+}
+
+.textual-view-code {
+    display: block;
+}
+
+.textual-view-loading {
+    color: var(--vscode-descriptionForeground, #888);
+    font-style: italic;
+}
+
+/* CodeMirror 6 에디터 래퍼 */
+.textual-view-wrapper {
+    min-height: 240px;
+    height: calc(100vh - 300px);
+    overflow: auto;
+}
+
+.textual-view-wrapper .cm-editor {
+    height: 100%;
+    font-size: 12px;
+}
+
+.textual-view-wrapper .cm-scroller {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    line-height: 1.6;
+}
+
+/* fallback textarea (CodeMirror 로드 실패 시) */
+.textual-view-textarea {
+    display: block;
+    width: 100%;
+    min-height: 240px;
+    height: calc(100vh - 300px);
+    padding: 12px 16px;
+    margin: 0;
+    box-sizing: border-box;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--vscode-editor-foreground, #333);
+    background-color: var(--vscode-editor-background, #fff);
+    border: none;
+    outline: none;
+    resize: none;
+    tab-size: 4;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+}
+
+.textual-view-textarea:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--vscode-focusBorder, #0078d4);
+}
+
+/* 저장 버튼 강조 */
+.textual-view-btn--save {
+    background-color: var(--vscode-button-background, #0078d4);
+    color: var(--vscode-button-foreground, #fff);
+    border-color: var(--vscode-button-background, #0078d4);
+    font-weight: 600;
+    padding: 2px 10px;
+}
+
+.textual-view-btn--save:hover {
+    background-color: var(--vscode-button-hoverBackground, #005fa3);
+    border-color: var(--vscode-button-hoverBackground, #005fa3);
+}
+
+/* 에러 배너 */
+.textual-view-error-banner {
+    padding: 6px 10px;
+    margin-top: 6px;
+    background-color: #3d0f0f;
+    border: 1px solid #7f1d1d;
+    border-radius: 4px;
+    color: #fca5a5;
+    font-size: 11px;
+    line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    max-height: 160px;
+    overflow: hidden;
+}
+
+/* Diagnostics 헤더 */
+.diagnostic-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #7f1d1d;
+}
+
+.diagnostic-count {
+    font-weight: 600;
+    font-size: 11px;
+}
+
+/* Diagnostics 목록 */
+.diagnostic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 100px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.diagnostic-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 3px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.diagnostic-item:hover {
+    background-color: rgba(252, 165, 165, 0.15);
+}
+
+.diagnostic-icon {
+    color: #fca5a5;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.diagnostic-location {
+    font-weight: 600;
+    font-size: 10px;
+    color: #fca5a5;
+    flex-shrink: 0;
+    min-width: 50px;
+}
+
+.diagnostic-message {
+    font-size: 11px;
+    color: #fca5a5;
+    word-break: break-word;
+}
+
+/* CodeMirror 에러 하이라이팅 */
+.cm-diagnostic-error,
+.cm-editor .cm-diagnostic-error,
+.cm-content .cm-diagnostic-error,
+.cm-line .cm-diagnostic-error {
+    color: #ff0000 !important;
+    font-weight: 900 !important;
+    text-decoration: none !important;
+    background-color: rgba(255, 0, 0, 0.15) !important;
+}
+
+/* SysML 구문 하이라이팅 - 파란색 키워드만 */
+.sysml-keyword {
+    color: #0070c1;
+    font-weight: 600;
+}
+
+/* ========================================
+ * Panel Resize Handle Styles
+ * ======================================== */
+
+.panel-resize-handle {
+    width: 6px;
+    min-width: 6px;
+    background: transparent;
+    cursor: ew-resize;
+    position: relative;
+    z-index: 10;
+    transition: background-color 0.15s ease;
+}
+
+.panel-resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 100%;
+    background: var(--vscode-panel-border, #ddd);
+    opacity: 0.5;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.panel-resize-handle:hover {
+    background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.05));
+}
+
+.panel-resize-handle:hover::before {
+    opacity: 1;
+    background: var(--vscode-focusBorder, #0078d4);
+}
+
+.panel-resize-handle.dragging {
+    background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.08));
+}
+
+.panel-resize-handle.dragging::before {
+    opacity: 1;
+    background: var(--vscode-focusBorder, #0078d4);
+}
+
+/* 키보드 접근성 */
+.panel-resize-handle:focus {
+    outline: 1px solid var(--vscode-focusBorder, #0078d4);
+    outline-offset: -1px;
+}
+
+/* ========================================
+ * mxGraph 인라인 편집기 스타일
+ * ======================================== */
+
+/* 인라인 편집 중 텍스트 밑줄 + 이탤릭 + 자동 줄바꿈 */
+.mxCellEditor {
+    text-decoration: underline !important;
+    font-style: italic !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: pre-wrap !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    border: none !important;
+    padding: 0 2px !important;
+}
+
+/* ========================================
+ * ninja-keys 컨텍스트 메뉴 테마 오버라이드
+ * ======================================== */
+
+ninja-keys {
+    --ninja-width: 480px;
+    --ninja-top: 20%;
+    --ninja-modal-background: #ffffff;
+    --ninja-text-color: #1f2328;
+    --ninja-accent-color: #0969da;
+    --ninja-selected-background: #f6f8fa;
+    --ninja-selected-text-color: #1f2328;
+    --ninja-secondary-background-color: #f6f8fa;
+    --ninja-secondary-text-color: #656d76;
+    --ninja-placeholder-color: #9198a1;
+    --ninja-separate-border: 1px solid #d1d9e0;
+    --ninja-modal-shadow: 0 8px 24px rgba(140, 149, 159, 0.2), 0 1px 3px rgba(31, 35, 40, 0.12);
+    --ninja-footer-background: #f6f8fa;
+    --ninja-group-text-color: #656d76;
+    --ninja-overflow-background: rgba(31, 35, 40, 0.3);
+    --ninja-z-index: 9999;
+    --ninja-actions-height: 360px;
+    --ninja-font-size: 15px;
+    --ninja-icon-size: 18px;
+}
+
+/* ========================================
+ * mxGraph Rubberband (Alt+드래그 영역 선택)
+ * ======================================== */
+div.mxRubberband {
+    position: absolute;
+    border: 3px solid #0078d4;
+    background: rgba(0, 120, 212, 0.25);
+    pointer-events: none;
+    z-index: 9999;
+}

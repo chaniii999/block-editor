@@ -1,0 +1,365 @@
+{
+    "nodes": [{
+            "id": "Vehicle",
+            "kind": "partdefinition",
+            "name": "Vehicle"
+        },
+        {
+            "id": "Car",
+            "kind": "partdefinition",
+            "name": "Car"
+        },
+        {
+            "id": "Truck",
+            "kind": "partdefinition",
+            "name": "Truck"
+        },
+
+        {
+            "id": "PowerTrain",
+            "kind": "partdefinition",
+            "name": "PowerTrain"
+        },
+        {
+            "id": "Engine",
+            "kind": "partdefinition",
+            "name": "Engine"
+        },
+        {
+            "id": "ElectricMotor",
+            "kind": "partdefinition",
+            "name": "ElectricMotor"
+        },
+        {
+            "id": "Transmission",
+            "kind": "partdefinition",
+            "name": "Transmission"
+        },
+
+        {
+            "id": "Chassis",
+            "kind": "partdefinition",
+            "name": "Chassis"
+        },
+        {
+            "id": "Suspension",
+            "kind": "partdefinition",
+            "name": "Suspension"
+        },
+        {
+            "id": "Brake",
+            "kind": "partdefinition",
+            "name": "Brake"
+        },
+        {
+            "id": "Wheel",
+            "kind": "partdefinition",
+            "name": "Wheel"
+        },
+
+        {
+            "id": "ControlSystem",
+            "kind": "partdefinition",
+            "name": "ControlSystem"
+        },
+        {
+            "id": "ECU",
+            "kind": "partdefinition",
+            "name": "ECU"
+        },
+        {
+            "id": "Sensor",
+            "kind": "partdefinition",
+            "name": "Sensor"
+        },
+        {
+            "id": "Actuator",
+            "kind": "partdefinition",
+            "name": "Actuator"
+        },
+
+        {
+            "id": "BatterySystem",
+            "kind": "partdefinition",
+            "name": "BatterySystem"
+        },
+        {
+            "id": "BatteryPack",
+            "kind": "partdefinition",
+            "name": "BatteryPack"
+        },
+        {
+            "id": "BatteryCell",
+            "kind": "partdefinition",
+            "name": "BatteryCell"
+        },
+        {
+            "id": "BMS",
+            "kind": "partdefinition",
+            "name": "BMS"
+        },
+
+        {
+            "id": "PowerPort",
+            "kind": "portdefinition",
+            "name": "PowerPort"
+        },
+        {
+            "id": "ControlPort",
+            "kind": "portdefinition",
+            "name": "ControlPort"
+        },
+        {
+            "id": "DataPort",
+            "kind": "portdefinition",
+            "name": "DataPort"
+        },
+
+        {
+            "id": "engine_p",
+            "kind": "partusage",
+            "name": "engine"
+        },
+        {
+            "id": "motor_p",
+            "kind": "partusage",
+            "name": "motor"
+        },
+        {
+            "id": "transmission_p",
+            "kind": "partusage",
+            "name": "transmission"
+        },
+        {
+            "id": "battery_p",
+            "kind": "partusage",
+            "name": "battery"
+        },
+        {
+            "id": "ecu_p",
+            "kind": "partusage",
+            "name": "ecu"
+        },
+
+        {
+            "id": "maxPower",
+            "kind": "attributedefinition",
+            "name": "maxPower"
+        },
+        {
+            "id": "maxTorque",
+            "kind": "attributedefinition",
+            "name": "maxTorque"
+        },
+        {
+            "id": "voltage",
+            "kind": "attributedefinition",
+            "name": "voltage"
+        },
+        {
+            "id": "capacity",
+            "kind": "attributedefinition",
+            "name": "capacity"
+        }
+    ],
+    "edges": [{
+            "source": "Car",
+            "target": "Vehicle",
+            "kind": "specialization"
+        },
+        {
+            "source": "Truck",
+            "target": "Vehicle",
+            "kind": "specialization"
+        },
+
+        {
+            "source": "Vehicle",
+            "target": "PowerTrain",
+            "kind": "containment"
+        },
+        {
+            "source": "Vehicle",
+            "target": "Chassis",
+            "kind": "containment"
+        },
+        {
+            "source": "Vehicle",
+            "target": "ControlSystem",
+            "kind": "containment"
+        },
+        {
+            "source": "Car",
+            "target": "BatterySystem",
+            "kind": "containment"
+        },
+
+        {
+            "source": "PowerTrain",
+            "target": "Engine",
+            "kind": "containment"
+        },
+        {
+            "source": "PowerTrain",
+            "target": "ElectricMotor",
+            "kind": "containment"
+        },
+        {
+            "source": "PowerTrain",
+            "target": "Transmission",
+            "kind": "containment"
+        },
+
+        {
+            "source": "Chassis",
+            "target": "Suspension",
+            "kind": "containment"
+        },
+        {
+            "source": "Chassis",
+            "target": "Brake",
+            "kind": "containment"
+        },
+        {
+            "source": "Chassis",
+            "target": "Wheel",
+            "kind": "containment"
+        },
+
+        {
+            "source": "ControlSystem",
+            "target": "ECU",
+            "kind": "containment"
+        },
+        {
+            "source": "ControlSystem",
+            "target": "Sensor",
+            "kind": "containment"
+        },
+        {
+            "source": "ControlSystem",
+            "target": "Actuator",
+            "kind": "containment"
+        },
+
+        {
+            "source": "BatterySystem",
+            "target": "BatteryPack",
+            "kind": "containment"
+        },
+        {
+            "source": "BatterySystem",
+            "target": "BMS",
+            "kind": "containment"
+        },
+        {
+            "source": "BatteryPack",
+            "target": "BatteryCell",
+            "kind": "containment"
+        },
+
+        {
+            "source": "engine_p",
+            "target": "Engine",
+            "kind": "featuretyping"
+        },
+        {
+            "source": "motor_p",
+            "target": "ElectricMotor",
+            "kind": "featuretyping"
+        },
+        {
+            "source": "transmission_p",
+            "target": "Transmission",
+            "kind": "featuretyping"
+        },
+        {
+            "source": "battery_p",
+            "target": "BatterySystem",
+            "kind": "featuretyping"
+        },
+        {
+            "source": "ecu_p",
+            "target": "ECU",
+            "kind": "featuretyping"
+        },
+
+        {
+            "source": "Engine",
+            "target": "maxPower",
+            "kind": "containment"
+        },
+        {
+            "source": "Engine",
+            "target": "maxTorque",
+            "kind": "containment"
+        },
+        {
+            "source": "BatteryPack",
+            "target": "voltage",
+            "kind": "containment"
+        },
+        {
+            "source": "BatteryPack",
+            "target": "capacity",
+            "kind": "containment"
+        },
+
+        {
+            "source": "Engine",
+            "target": "PowerPort",
+            "kind": "containment"
+        },
+        {
+            "source": "Transmission",
+            "target": "PowerPort",
+            "kind": "containment"
+        },
+        {
+            "source": "ECU",
+            "target": "ControlPort",
+            "kind": "containment"
+        },
+        {
+            "source": "ECU",
+            "target": "DataPort",
+            "kind": "containment"
+        },
+        {
+            "source": "Sensor",
+            "target": "DataPort",
+            "kind": "containment"
+        },
+
+        {
+            "source": "ECU",
+            "target": "Engine",
+            "kind": "association"
+        },
+        {
+            "source": "ECU",
+            "target": "ElectricMotor",
+            "kind": "association"
+        },
+        {
+            "source": "ECU",
+            "target": "BMS",
+            "kind": "association"
+        },
+        {
+            "source": "BMS",
+            "target": "BatteryPack",
+            "kind": "association"
+        },
+        {
+            "source": "Engine",
+            "target": "Transmission",
+            "kind": "association"
+        },
+        {
+            "source": "ElectricMotor",
+            "target": "Transmission",
+            "kind": "association"
+        }
+    ]
+}

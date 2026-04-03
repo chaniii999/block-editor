@@ -1,0 +1,61 @@
+{
+    "name": "selab-block-editor",
+    "displayName": "SELab SysML Block Editor",
+    "description": "Simplified SysML v2 BDD/IBD viewer for blocks, parts, and structural relationships",
+    "publisher": "SELabAI",
+    "version": "0.1.0",
+    "engines": {
+        "vscode": "^1.56.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:selab.block.openBeside",
+        "onCommand:selab.block.openForDocument"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "commands": [{
+            "command": "selab.block.openBeside",
+            "title": "%command.openBlockDiagramBeside%"
+        }, {
+            "command": "selab.block.openForDocument",
+            "title": "%command.openBlockDiagramForDocument%"
+        }],
+        "menus": {
+            "editor/context": [{
+                "command": "selab.block.openBeside",
+                "group": "SELab"
+            }]
+        }
+    },
+    "scripts": {
+        "clean": "shx rm -rf lib",
+        "build": "node scripts/build.mjs node src/extension.js -o ./dist",
+        "watch": "node scripts/build.mjs node src/extension.js -o ./dist --watch",
+        "test:block": "node tests/test-block-filtering.mjs",
+        "test:block:debug": "node tests/debug-block-render.mjs",
+        "test:block:image": "node tests/debug-sysml-to-block-image.mjs",
+        "prepack": "pnpm clean && pnpm build"
+    },
+    "files": [
+        "dist",
+        "media",
+        "README.md",
+        "package.nls*.json",
+        "node_modules/elkjs/lib/elk.bundled.js",
+        "node_modules/mxgraph/javascript/mxClient.min.js"
+    ],
+    "devDependencies": {
+        "esbuild": "^0.17.10",
+        "node-stdlib-browser": "^1.2.0",
+        "playwright": "^1.58.0",
+        "shx": "^0.3.4"
+    },
+    "dependencies": {
+        "elkjs": "^0.11.0",
+        "mxgraph": "^4.2.2",
+        "selab-ui": "file:packages/selab-ui"
+    }
+}

@@ -1,0 +1,122 @@
+/* Copyright: SELab.AI (c) 2026 */
+
+.selab-diagram-tab-bar {
+    display: flex;
+    align-items: stretch;
+    background: var(--vscode-editorGroupHeader-tabsBackground, #1e1e1e);
+    border-top: 1px solid var(--vscode-editorGroupHeader-tabsBorder, #333);
+    height: 30px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    user-select: none;
+    scrollbar-width: thin;
+}
+
+.selab-diagram-tab-bar::-webkit-scrollbar {
+    height: 3px;
+}
+
+.selab-diagram-tab-bar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.selab-diagram-tab-bar::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-background, #555);
+    border-radius: 2px;
+}
+
+.selab-diagram-tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 10px;
+    min-width: 80px;
+    max-width: 180px;
+    height: 100%;
+    font-size: 11px;
+    color: var(--vscode-tab-inactiveForeground, #999);
+    background: var(--vscode-tab-inactiveBackground, #2d2d2d);
+    border-right: 1px solid var(--vscode-editorGroupHeader-tabsBorder, #333);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.1s;
+}
+
+.selab-diagram-tab:hover {
+    background: var(--vscode-tab-hoverBackground, #383838);
+    color: var(--vscode-tab-activeForeground, #fff);
+}
+
+.selab-diagram-tab.active {
+    background: var(--vscode-tab-activeBackground, #1e1e1e);
+    color: var(--vscode-tab-activeForeground, #fff);
+    border-top: 2px solid var(--vscode-focusBorder, #007acc);
+    font-weight: 500;
+}
+
+.selab-diagram-tab-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
+.selab-diagram-tab-type {
+    font-size: 9px;
+    opacity: 0.55;
+    pointer-events: none;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.selab-diagram-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    opacity: 0;
+    font-size: 10px;
+    line-height: 1;
+    color: var(--vscode-tab-inactiveForeground, #999);
+    transition: opacity 0.1s, background 0.1s;
+    flex-shrink: 0;
+}
+
+.selab-diagram-tab:hover .selab-diagram-tab-close,
+.selab-diagram-tab.active .selab-diagram-tab-close {
+    opacity: 0.7;
+}
+
+.selab-diagram-tab-close:hover {
+    opacity: 1 !important;
+    background: var(--vscode-toolbar-hoverBackground, #444);
+    color: var(--vscode-errorForeground, #f44);
+}
+
+.selab-diagram-tab-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 100%;
+    padding: 0 6px;
+    font-size: 14px;
+    color: var(--vscode-tab-inactiveForeground, #999);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0.6;
+    transition: opacity 0.1s, background 0.1s;
+}
+
+.selab-diagram-tab-add:hover {
+    opacity: 1;
+    background: var(--vscode-toolbar-hoverBackground, #333);
+}

@@ -1,0 +1,13 @@
+{
+    "name": "selab-ui",
+    "version": "0.1.0",
+    "description": "Shared UI components for SELab VS Code extension webviews — toolbar factory, shared styles",
+    "publisher": "SELabAI",
+    "license": "SEE LICENSE IN LICENSE",
+    "scripts": {
+        "build": "node -e \"console.log('[selab-ui] JS project: nothing to build')\"",
+        "watch": "node -e \"console.log('[selab-ui] JS project: no watch task')\""
+    },
+    "dependencies": {},
+    "devDependencies": {}
+}
