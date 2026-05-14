@@ -1,0 +1,24 @@
+---
+description: block-editor 코드 수정 시 README.md를 최우선 수용 기준으로 둠
+alwaysApply: true
+---
+
+# README.md 최우선 (block-editor)
+
+이 저장소(**SELab Block Editor**)에서 **코드를 수정하거나 설계·범위를 정할 때** 저장소 루트의 **`README.md`**를 **최우선·최종 수용 기준**으로 한다.
+
+## 우선순위
+
+1. **`README.md`** — 과제 목표, 직교·레이아웃 품질 기준, 테스트 JSON 설명, As-Is 문제, 사용 방법
+2. 그다음 — 이 저장소의 다른 문서·코드 주석·`p_docs/` 등
+3. 일반적인 SysML/ELK 관례나 타 저장소 패턴은 **README와 맞을 때만** 참고한다
+
+## 행동 규칙
+
+- README에 적힌 목표·기준과 **충돌하는 변경**은 하지 않는다.
+- README에 없는 기능·리팩터·확장을 하려면, **과제 범위를 벗어나지 않는지** 먼저 README 문맥으로 검증한다.
+- 애매하면 **`README.md`를 다시 읽고** 그 문구에 맞춰 판단한다. 추측으로 범위를 넓히지 않는다.
+
+## 연동 파일
+
+- 과제 입력·검증: `README.md`가 가리키는 `tests/*.json` (예: `test-1.json`)
