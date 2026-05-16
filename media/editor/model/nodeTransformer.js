@@ -278,6 +278,7 @@
         // 2단계: Port, ItemUsage, Border Node 분리 (캐시 없이 먼저 분류)
         const portNodes = [];
         const itemNodes = [];
+        const attributeDefNodes = [];
         const borderNodes = [];
         const regularElements = [];
 
@@ -335,6 +336,12 @@
                 } else {
                     itemNodes.push(el);
                 }
+            } else if (kindLower === 'attributedefinition') {
+                if (!el.parent) {
+                    regularElements.push(el);
+                } else {
+                    attributeDefNodes.push(el);
+                }
             } else {
                 regularElements.push(el);
             }
@@ -366,6 +373,7 @@
         if (finalCache) {
             ph.processPortCompartments(portNodes, finalCache, settings);
             ph.processItemCompartments(itemNodes.filter(it => !borderNodeIds.has(it.id)), finalCache, settings);
+            ph.processAttributeDefinitionCompartments(attributeDefNodes, finalCache);
             ph.processBorderNodes(borderNodes, finalCache);
         } else {
             console.warn('[nodeTransformer] ⚠️ ModelCache not available, using fallback');
@@ -412,6 +420,7 @@
         get shouldRenderPortAsBorderNode() { return getPortHandler().shouldRenderPortAsBorderNode; },
         get shouldRenderPortAsBorderNodeAuto() { return getPortHandler().shouldRenderPortAsBorderNodeAuto; },
         get processPortCompartments() { return getPortHandler().processPortCompartments; },
+        get processAttributeDefinitionCompartments() { return getPortHandler().processAttributeDefinitionCompartments; },
         get formatPortLabel() { return getPortHandler().formatPortLabel; },
         get createBorderNodeData() { return getPortHandler().createBorderNodeData; },
         get processBorderNodes() { return getPortHandler().processBorderNodes; },

@@ -402,6 +402,105 @@
     }
 
     /**
+     * AttributeDefinition 레이블 (compartment 텍스트)
+     * @param {Object} attr - AttributeDefinition 노드
+     * @returns {string}
+     */
+    function formatAttributeDefinitionLabel(attr) {
+        let label = attr.name || attr.id || '';
+        const nameAlreadyHasType = label && label.includes(' : ');
+        if ((attr.declaredType || attr.typeName) && !nameAlreadyHasType) {
+            label += ' : ' + (attr.declaredType || attr.typeName);
+        }
+        return label;
+    }
+
+    /**
+     * AttributeDefinition을 부모 노드 attributes compartment 텍스트로 흡수 (독립 노드 미표시)
+     * @param {Array} attributeDefNodes
+     * @param {Object} cache
+     */
+    function processAttributeDefinitionCompartments(attributeDefNodes, cache) {
+        if (!Array.isArray(attributeDefNodes) || attributeDefNodes.length === 0 || !cache) {
+            return;
+        }
+
+        const attrsByParent = new Map();
+        for (const attr of attributeDefNodes) {
+            if (!attr?.parent) {
+                console.warn(`[portBorderNodeHandler] AttributeDefinition "${attr?.name || attr?.id}" has no parent, skipping`);
+                continue;
+            }
+            const parentKey = String(attr.parent);
+            if (!attrsByParent.has(parentKey)) {
+                attrsByParent.set(parentKey, []);
+            }
+            attrsByParent.get(parentKey).push(attr);
+        }
+
+        for (const [parentKey, attrs] of attrsByParent.entries()) {
+            const parent = cache.getElement(parentKey);
+            if (!parent) {
+                console.warn(`[portBorderNodeHandler] Parent "${parentKey}" not found for AttributeDefinitions`);
+                continue;
+            }
+
+            if (!parent.compartments) {
+                parent.compartments = [];
+            }
+
+            let attrCompartment = parent.compartments.find((c) =>
+                c.key === 'attributes' || c.key === 'ownedAttribute' || c.key === 'nestedAttribute'
+            );
+
+            if (!attrCompartment) {
+                attrCompartment = {
+                    key: 'attributes',
+                    items: [],
+                    collapsed: false,
+                    _nodes: [],
+                };
+                parent.compartments.push(attrCompartment);
+            } else {
+                if (!Array.isArray(attrCompartment.items)) {
+                    attrCompartment.items = [];
+                }
+                if (!Array.isArray(attrCompartment._nodes)) {
+                    attrCompartment._nodes = [];
+                }
+            }
+
+            const existingIds = new Set(
+                (attrCompartment._nodes || []).map((n) => String(n?.id || '')).filter(Boolean)
+            );
+            const existingLabels = new Set(
+                (attrCompartment.items || []).map((item) => String(typeof item === 'string' ? item : (item?.name || item?.label || '')))
+            );
+
+            const sorted = [...attrs].sort((a, b) =>
+                String(a.name || a.id || '').localeCompare(String(b.name || b.id || ''))
+            );
+
+            for (const attr of sorted) {
+                const aid = String(attr.id || '');
+                if (aid && existingIds.has(aid)) {
+                    continue;
+                }
+                const label = formatAttributeDefinitionLabel(attr);
+                if (existingLabels.has(label)) {
+                    continue;
+                }
+                attrCompartment.items.push(label);
+                attrCompartment._nodes.push(attr);
+                if (aid) {
+                    existingIds.add(aid);
+                }
+                existingLabels.add(label);
+            }
+        }
+    }
+
+    /**
      * direction 값으로부터 side를 결정 (in→N, out→S, inout→N)
      * Language Server가 side를 명시한 경우 그 값을 우선 사용
      * @param {string|undefined} explicitSide - LS에서 온 side 값
@@ -574,6 +673,8 @@
         formatPortLabel,
         processItemCompartments,
         formatItemLabel,
+        processAttributeDefinitionCompartments,
+        formatAttributeDefinitionLabel,
         createBorderNodeData,
         processBorderNodes,
         assignOffsets,
