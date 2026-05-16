@@ -120,6 +120,13 @@
                 }
             }
 
+            if (kl === 'association' || kl.includes('association')) {
+                if (!shouldShowEdgeInEditor('association', config)) {
+                    containmentFiltered++;
+                    return false;
+                }
+            }
+
             // SysON 기본 설정: Containment만 그래픽적으로 포함되면 숨김
             if (kl === 'containment') {
                 if (!shouldShowEdgeInEditor('containment', config)) {

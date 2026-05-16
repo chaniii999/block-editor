@@ -58,7 +58,11 @@
     function shouldShowEdgeInEditor(kind, config) {
         if (!kind) return true;
         const normalized = String(kind).toLowerCase();
+        const isAssociation =
+            normalized === 'association' || normalized.includes('association');
         const sections = config?.edges;
+        // BDD 기본: 연관관계는 직교·계층 레이아웃 품질을 위해 미표시 (config로만 켤 수 있음)
+        if (isAssociation && !sections) return false;
         if (!sections) return true;
         if (normalized === 'containment') {
             const cont = sections.containment;

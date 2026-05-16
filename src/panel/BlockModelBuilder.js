@@ -236,7 +236,7 @@ function buildBlockModel(model) {
     const filteredEdges = [];
     for (const edge of rawEdges) {
         const edgeKind = normalizeEdgeKind(edge);
-        if (!isBlockEdge(edge) || edgeKind === 'containment') {
+        if (!isBlockEdge(edge) || edgeKind === 'containment' || edgeKind === 'association') {
             continue;
         }
 
