@@ -110,9 +110,11 @@
           // key는 'action flow'(space) 또는 'actionFlow'(camelCase) 두 가지로 올 수 있음
           const textComps = containerComps.filter(c => c.key !== 'action flow' && c.key !== 'actionFlow');
           const compHeight = ns.Editor.metrics.calculateTotalCompartmentsHeight(textComps, false, el.width || 200);
-          if (compHeight > 0) {
-            // compartment 높이만 저장 (basePaddingTop이 이미 label+마진을 포함)
-            el._precomputedPaddingTop = compHeight;
+          const labelHeight = ns.Editor.metrics.calculateLabelHeight(el.name || el.id || '');
+          const contentTop = labelHeight + compHeight;
+          if (contentTop > 0) {
+            // mxGraph compartment 시작(y=labelHeight)과 ELK 자식 영역 상단을 맞춤
+            el._precomputedPaddingTop = contentTop;
           }
         }
         if (Array.isArray(el.featureTypingFooter) && el.featureTypingFooter.length > 0) {

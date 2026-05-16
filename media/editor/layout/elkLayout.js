@@ -502,8 +502,8 @@
               // IfActionUsage needs more top padding for condition label and branch labels (then/else)
               const CP = ELK_CFG?.containerPadding;
               const basePaddingTop = isIfAction ? (CP?.ifActionTop ?? 90) : (CP?.top ?? 10);
-              // precomputeNodeSizes에서 계산한 compartment 높이를 basePaddingTop에 가산
-              const paddingTop = basePaddingTop + (n._precomputedPaddingTop || 0);
+              const contentTop = Number(n._precomputedPaddingTop) || 0;
+              const paddingTop = Math.max(basePaddingTop, contentTop);
               
               // WhileLoopActionUsage needs more bottom padding for 'until condition' label
               const footerPad = Number(n._featureUsageFooterHeight) || 0;
@@ -866,18 +866,99 @@
       if (typeof NS.alignRanks === 'function') {
         try { 
           NS.alignRanks(diagramData, { 
-            debug: true,  // 디버그 모드 활성화하여 로그 확인
-            preserveElkSpacing: false  // 강제 정렬 모드로 테스트
+            debug: false,
+            preserveElkSpacing: true,
           }); 
         } catch (e) { 
           console.log('[applyElkLayout] alignRanks failed', e); 
         }
       }
+      resolveSiblingOverlaps(diagramData);
     } catch (err) {
       console.log('[applyElkLayout] error - falling back to grid', err);
       fallbackGrid(diagramData);
     }
   };
+
+  /**
+   * 같은 부모 아래 형제 노드 bbox 겹침 해소 (루트·컨테이너 내부 공통)
+   */
+  function resolveSiblingOverlaps(diagramData) {
+    const elements = Array.isArray(diagramData?.elements) ? diagramData.elements : [];
+    const visible = elements.filter((e) => e && !e.hidden && e.id);
+    const GAP = 24;
+    const MAX_PASS = 16;
+
+    function bounds(el) {
+      const x = Number(el.relativeX ?? el.x) || 0;
+      const y = Number(el.relativeY ?? el.y) || 0;
+      return {
+        x,
+        y,
+        w: Number(el.width) || 120,
+        h: Number(el.height) || 60,
+      };
+    }
+
+    function overlaps(a, b) {
+      return (
+        a.x < b.x + b.w + GAP &&
+        a.x + a.w + GAP > b.x &&
+        a.y < b.y + b.h + GAP &&
+        a.y + a.h + GAP > b.y
+      );
+    }
+
+    function shiftSubtree(el, dx, dy) {
+      if (dx) {
+        el.x = (Number(el.x) || 0) + dx;
+        if (typeof el.relativeX === 'number') el.relativeX += dx;
+      }
+      if (dy) {
+        el.y = (Number(el.y) || 0) + dy;
+        if (typeof el.relativeY === 'number') el.relativeY += dy;
+      }
+      for (const child of visible) {
+        if (String(child.parent) === String(el.id)) {
+          shiftSubtree(child, dx, dy);
+        }
+      }
+    }
+
+    const groups = new Map();
+    for (const el of visible) {
+      const pk = el.parent ? String(el.parent) : '__root__';
+      if (!groups.has(pk)) groups.set(pk, []);
+      groups.get(pk).push(el);
+    }
+
+    for (const siblings of groups.values()) {
+      if (siblings.length < 2) continue;
+      for (let pass = 0; pass < MAX_PASS; pass++) {
+        let moved = false;
+        siblings.sort(
+          (a, b) => bounds(a).y - bounds(b).y || bounds(a).x - bounds(b).x,
+        );
+        for (let i = 0; i < siblings.length; i++) {
+          for (let j = i + 1; j < siblings.length; j++) {
+            const ba = bounds(siblings[i]);
+            const bb = bounds(siblings[j]);
+            if (!overlaps(ba, bb)) continue;
+            const pushDown = ba.y + ba.h + GAP - bb.y;
+            const pushRight = ba.x + ba.w + GAP - bb.x;
+            if (pushDown > 0 && (pushDown <= pushRight || pushRight <= 0)) {
+              shiftSubtree(siblings[j], 0, pushDown);
+              moved = true;
+            } else if (pushRight > 0) {
+              shiftSubtree(siblings[j], pushRight, 0);
+              moved = true;
+            }
+          }
+        }
+        if (!moved) break;
+      }
+    }
+  }
 
   /**
    * specialization/generalization: 부모(target)가 자식(source)보다 위(y 작음)에 오도록 루트 노드 Y 보정

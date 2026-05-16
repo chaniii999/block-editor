@@ -80,6 +80,18 @@
         }
     }
 
+    function getContentAreaTop(parentCell, parentNode) {
+        const node = parentNode || parentCell?._nodeData;
+        const precomputed = Number(node?._precomputedPaddingTop);
+        if (precomputed > 0) return precomputed;
+        const labelH =
+            parentCell?._labelHeight ||
+            node?._labelHeight ||
+            Number(ns.Editor?.config?.displaySettings?.label?.minHeight) ||
+            35;
+        return labelH;
+    }
+
     function resizeParentsToFitChildren(graph, defaultParent, cellMap, nodes) {
         const PADDING = 20;
         const CHILD_GAP = 10;
@@ -121,10 +133,10 @@
 
             if (childGeos.length === 0) continue;
 
-            // 자식들을 부모 중앙에 배치
-            const HEADER_H = 35; // swimlane 헤더 높이
+            const parentNode = parentCell._nodeData;
+            const contentTop = getContentAreaTop(parentCell, parentNode);
             const footerReserve =
-                Number(parentCell._nodeData?._featureUsageFooterHeight) ||
+                Number(parentNode?._featureUsageFooterHeight) ||
                 Number(parentCell._featureUsageFooterHeight) ||
                 0;
             const footerExtra =
@@ -142,10 +154,13 @@
             const parentGeoForCenter = graphModel.getGeometry(parentCell);
             if (parentGeoForCenter) {
                 const availW = parentGeoForCenter.width;
-                const availH = parentGeoForCenter.height - HEADER_H - footerReserve;
-                // 중앙 오프셋 계산
+                const availH = parentGeoForCenter.height - contentTop - footerReserve;
+                // 중앙 오프셋 계산 (compartment 아래 영역만 사용)
                 const centerX = Math.max(10, (availW - childrenWidth) / 2);
-                const centerY = Math.max(HEADER_H + 5, HEADER_H + (availH - childrenHeight) / 2);
+                const centerY = Math.max(
+                    contentTop + 5,
+                    contentTop + Math.max(0, (availH - childrenHeight) / 2),
+                );
                 const shiftX = minX - centerX;
                 const shiftY = minY - centerY;
                 if (Math.abs(shiftX) > 2 || Math.abs(shiftY) > 2) {
@@ -187,7 +202,10 @@
                 const pGeo = graphModel.getGeometry(parentCell);
                 if (pGeo) {
                     const fitW = maxRight2 + PADDING;
-                    const fitH = maxBottom2 + PADDING + footerReserve + footerExtra;
+                    const fitH = Math.max(
+                        maxBottom2 + PADDING + footerReserve + footerExtra,
+                        contentTop + childrenHeight + PADDING + footerReserve + footerExtra,
+                    );
                     // 부모 크기를 자식 fit 크기로 조정 (확장뿐 아니라 축소도)
                     const newGeo = pGeo.clone();
                     newGeo.width = Math.max(fitW, 100); // 최소 100
