@@ -105,6 +105,51 @@
         }
     }
 
+    /** specialization: 자식(source)→부모(target) 상대 위치에 맞는 exit/entry (고정 top→bottom 시 우회 경로 발생) */
+    function getSpecializationAnchorStyles(graph, sourceCell, targetCell) {
+        const model = graph.getModel();
+        const defaultParent = graph.getDefaultParent();
+
+        function absCenter(cell) {
+            const g = model.getGeometry(cell);
+            if (!g) return null;
+            let x = g.x || 0;
+            let y = g.y || 0;
+            let p = cell.parent;
+            while (p && p !== defaultParent && p !== model.getRoot()) {
+                const pg = model.getGeometry(p);
+                if (pg) {
+                    x += pg.x || 0;
+                    y += pg.y || 0;
+                }
+                p = p.parent;
+            }
+            return {
+                cx: x + (g.width || 0) / 2,
+                cy: y + (g.height || 0) / 2,
+            };
+        }
+
+        const s = absCenter(sourceCell);
+        const t = absCenter(targetCell);
+        if (!s || !t) {
+            return 'exitX=0.5;exitY=0;exitPerimeter=0;entryX=0.5;entryY=1;entryPerimeter=0';
+        }
+
+        const dx = t.cx - s.cx;
+        const dy = t.cy - s.cy;
+        if (Math.abs(dy) >= Math.abs(dx)) {
+            if (dy > 0) {
+                return 'exitX=0.5;exitY=1;exitPerimeter=0;entryX=0.5;entryY=0;entryPerimeter=0';
+            }
+            return 'exitX=0.5;exitY=0;exitPerimeter=0;entryX=0.5;entryY=1;entryPerimeter=0';
+        }
+        if (dx > 0) {
+            return 'exitX=1;exitY=0.5;exitPerimeter=0;entryX=0;entryY=0.5;entryPerimeter=0';
+        }
+        return 'exitX=0;exitY=0.5;exitPerimeter=0;entryX=1;entryY=0.5;entryPerimeter=0';
+    }
+
     /**
      * 같은 노드에 여러 엣지가 연결될 때 연결점을 분산 배치 (겹침 방지)
      * @param {mxGraph} graph
@@ -421,13 +466,11 @@
         if (!hasElkWaypoints) {
             const exitStyle = getBorderNodeExitStyle(sourceCell);
             const entryStyle = getBorderNodeEntryStyle(targetCell);
-            if (exitStyle) style += `;${exitStyle}`;
-            else if (isSpecializationHierarchyKind(edgeTypeLower)) {
-                style += ';exitX=0.5;exitY=0;exitPerimeter=0';
-            }
-            if (entryStyle) style += `;${entryStyle}`;
-            else if (isSpecializationHierarchyKind(edgeTypeLower)) {
-                style += ';entryX=0.5;entryY=1;entryPerimeter=0';
+            if (isSpecializationHierarchyKind(edgeTypeLower) && !exitStyle && !entryStyle) {
+                style += `;${getSpecializationAnchorStyles(graph, sourceCell, targetCell)}`;
+            } else {
+                if (exitStyle) style += `;${exitStyle}`;
+                if (entryStyle) style += `;${entryStyle}`;
             }
         }
 

@@ -315,6 +315,48 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-16 — Phase 1-A test-1 노드 배치 (엣지 전제)
+
+### 지시
+
+> 로드맵 1단계부터 — containment·specialization·겹침/이탈 (엣지 작업 전제).
+
+### 수정 (`elkLayout.js`, 미커밋)
+
+| 함수 | 역할 |
+|------|------|
+| `applySpecializationAroundParentLayout` | 부모(Vehicle) **아래**에 spec 자식(Car, Truck) 가로 중앙 (UML 서브타입 아래) |
+| `fitDiagramToMargins` | 전체 다이어그램 min(x,y) ≥ 48px (캔버스 이탈 완화) |
+
+호출 순서: ELK → `applySpecializationVerticalLayout` → **aroundParent** → **fitMargins** → edgeRouting → alignRanks → `resolveSiblingOverlaps`.
+
+### 확인
+
+- F5 + `tests/test-1.json`: Vehicle 위, Car·Truck 아래, BatterySystem과 겹침 없는지
+
+---
+
+## 2026-05-16 — specialization 엣지 우회 (Car→Vehicle)
+
+### 현상
+
+- Car가 Vehicle **위**에 배치됐는데 specialization 선이 오른쪽으로 크게 돌아 Vehicle **하단**에 도착
+- Truck→Vehicle은 짧은 수직선이나 Car 선과 겹침
+
+### 원인
+
+- `MxEdgeBuilder`: specialization에 **항상** `exitY=0`(소스 상단)·`entryY=1`(타겟 하단) 고정
+- 1-A에서 Car를 부모 **위**로 옮기면서 기하와 앵커가 **반대** → mxGraph 직교 라우터가 박스를 피해 우회
+
+### 수정 (`MxEdgeBuilder.js`)
+
+- `getSpecializationAnchorStyles(graph, source, target)` — 절대 좌표 중심 비교
+  - 타겟이 아래: `exitY=1` → `entryY=0`
+  - 타겟이 위: `exitY=0` → `entryY=1`
+  - 좌우 우세 시 `exitX`/`entryX` 측면
+
+---
+
 ## 보류·참고
 
 | 항목 | 상태 |
@@ -342,4 +384,67 @@ d310653  feat: 형제 겹침 해소·compartment padding 정합 (HEAD)
 
 ---
 
-*이 파일은 작업할 때마다 위 형식으로 항목을 추가한다.*
+## 커밋 메시지 (작업 완료·스테이징 시)
+
+> **커밋 시점:** F5 `tests/test-1.json`에서 아래 확인 후.  
+> **포함 파일(현재 미커밋 묶음):** `elkLayout.js`, `MxEdgeBuilder.js`, `p_docs/03_테스트_로드맵.md`, `work-log.md`  
+> compartment·푸터(`MxCompartmentRenderer.js` 등)는 **별도 커밋**이면 아래 「분리안」 참고.
+
+### 한 번에 커밋 (권장)
+
+```
+feat(layout): test-1 specialization 배치·엣지 앵커 정합
+
+- elkLayout: spec 자식을 부모 정의 아래 가로 정렬(UML), fitDiagramToMargins
+- MxEdgeBuilder: specialization exit/entry를 상대 위치에 맞게 동적 앵커
+- Car→Vehicle 우회 경로·자식이 부모 위에 오던 배치 문제 해소
+- 로드맵 Phase 1-A 체크·work-log 원인 기록
+```
+
+### 분리 커밋 (리뷰 나누고 싶을 때)
+
+**1) 레이아웃**
+
+```
+feat(layout): test-1 specialization 자식을 부모 아래에 배치
+
+- applySpecializationAroundParentLayout: 서브타입만 부모 박스 하단 가로 정렬
+- fitDiagramToMargins: 다이어그램 min(x,y) 여백
+```
+
+**2) 엣지**
+
+```
+fix(mxgraph): specialization 앵커를 노드 상대 위치에 맞게
+
+- getSpecializationAnchorStyles: 위/아래·좌우에 따라 exitY·entryY 선택
+- 고정 top→bottom 앵커로 인한 Car→Vehicle 우회 제거
+```
+
+**3) compartment·푸터** (해당 diff 스테이징할 때만)
+
+```
+fix(mxgraph): compartment·푸터 구분선 박스 안쪽 전폭
+
+- getVertexDecorBounds, dividerLineHtml, overflow=fill
+- 푸터 단일 하단 슬롯, resize 후 syncAllInteriorDecorWidths
+```
+
+### 스테이징 예시
+
+```bash
+git add media/editor/layout/elkLayout.js media/editor/mxgraph/MxEdgeBuilder.js p_docs/03_테스트_로드맵.md work-log.md
+git commit -m "$(cat <<'EOF'
+feat(layout): test-1 specialization 배치·엣지 앵커 정합
+
+- elkLayout: spec 자식을 부모 정의 아래 가로 정렬(UML), fitDiagramToMargins
+- MxEdgeBuilder: specialization exit/entry를 상대 위치에 맞게 동적 앵커
+- Car→Vehicle 우회 경로·자식이 부모 위에 오던 배치 문제 해소
+- 로드맵 Phase 1-A 체크·work-log 원인 기록
+EOF
+)"
+```
+
+---
+
+*이 파일은 작업할 때마다 위 형식으로 항목을 추가한다. 작업 묶음이 끝나면 위 「커밋 메시지」 섹션을 갱신한다.*

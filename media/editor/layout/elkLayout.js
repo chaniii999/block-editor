@@ -788,6 +788,8 @@
       }
       applyPositions(result, 0, 0);
       applySpecializationVerticalLayout(diagramData, ELK_CFG);
+      applySpecializationAroundParentLayout(diagramData, ELK_CFG);
+      fitDiagramToMargins(diagramData, 48);
 
       /**
        * ELK 엣지 라우팅 결과를 diagramData.connections에 적용
@@ -1048,6 +1050,104 @@
         }
       }
       bandY += bandHeight + layerGap;
+    }
+  }
+
+  /**
+   * specialization: 부모 정의(target) 아래에 자식(source)을 가로로 모음 (UML — 슈퍼타입 위, 서브타입 아래)
+   */
+  function applySpecializationAroundParentLayout(diagramData, elkCfg) {
+    const elements = Array.isArray(diagramData?.elements) ? diagramData.elements : [];
+    const connections = Array.isArray(diagramData?.connections) ? diagramData.connections : [];
+    const byId = new Map();
+    for (const el of elements) {
+      if (el?.id && !el.hidden) byId.set(el.id, el);
+    }
+
+    const specChildrenOf = new Map();
+    for (const conn of connections) {
+      const kind = conn.kind || conn.type;
+      if (!isSpecializationHierarchyKind(kind)) continue;
+      const childId = conn.source;
+      const parentId = conn.target;
+      if (!byId.has(childId) || !byId.has(parentId) || childId === parentId) continue;
+      if (!specChildrenOf.has(parentId)) specChildrenOf.set(parentId, []);
+      specChildrenOf.get(parentId).push(childId);
+    }
+
+    const layerGap = Number(elkCfg?.nodeNodeBetweenLayers) || 80;
+    const siblingGap = Number(elkCfg?.nodeNodeSpacing) || 100;
+
+    for (const [parentId, childIds] of specChildrenOf) {
+      const parent = byId.get(parentId);
+      if (!parent || parent.parent) continue;
+
+      const children = childIds
+        .map((id) => byId.get(id))
+        .filter((c) => c && !c.hidden && !c.parent);
+      if (children.length === 0) continue;
+
+      children.sort((a, b) =>
+        String(a.name || a.id).localeCompare(String(b.name || b.id)),
+      );
+
+      const px = Number(parent.x) || 0;
+      const py = Number(parent.y) || 0;
+      const pw = Number(parent.width) || 120;
+      const ph = Number(parent.height) || 60;
+      const pcx = px + pw / 2;
+
+      const belowY = py + ph + layerGap;
+      let rowW = 0;
+      for (const c of children) rowW += Number(c.width) || 120;
+      rowW += siblingGap * Math.max(0, children.length - 1);
+      let cx = pcx - rowW / 2;
+      for (const c of children) {
+        const cw = Number(c.width) || 120;
+        c.x = cx;
+        if (!parent.parent) c.relativeX = c.x;
+        c.y = belowY;
+        if (!c.parent) c.relativeY = c.y;
+        cx += cw + siblingGap;
+      }
+    }
+  }
+
+  /** 루트·자손 전체를 양수 좌표로 평행 이동 (캔버스 이탈 방지) */
+  function fitDiagramToMargins(diagramData, margin) {
+    const m = Number(margin) || 40;
+    const elements = Array.isArray(diagramData?.elements) ? diagramData.elements : [];
+    const visible = elements.filter((e) => e && !e.hidden && e.id);
+    if (visible.length === 0) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    for (const el of visible) {
+      minX = Math.min(minX, Number(el.x) || 0);
+      minY = Math.min(minY, Number(el.y) || 0);
+    }
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return;
+
+    const dx = minX < m ? m - minX : 0;
+    const dy = minY < m ? m - minY : 0;
+    if (dx === 0 && dy === 0) return;
+
+    function shiftSubtree(el) {
+      el.x = (Number(el.x) || 0) + dx;
+      el.y = (Number(el.y) || 0) + dy;
+      if (!el.parent) {
+        if (typeof el.relativeX === 'number') el.relativeX += dx;
+        else el.relativeX = el.x;
+        if (typeof el.relativeY === 'number') el.relativeY += dy;
+        else el.relativeY = el.y;
+      }
+      for (const child of visible) {
+        if (String(child.parent) === String(el.id)) shiftSubtree(child);
+      }
+    }
+
+    for (const el of visible) {
+      if (!el.parent) shiftSubtree(el);
     }
   }
 
