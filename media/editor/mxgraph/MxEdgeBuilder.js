@@ -367,6 +367,13 @@
         }
 
         if (edgeTypeLower === 'containment') return null;
+
+        if (
+            edgeTypeLower === 'featuretyping' &&
+            targetCell?._nodeData?.featureTypingFooter?.length
+        ) {
+            return null;
+        }
         if (id && String(id).startsWith('_implicit_')) return null;
 
         // cross-container featuretyping 엣지 필터링

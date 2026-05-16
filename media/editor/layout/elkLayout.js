@@ -478,7 +478,9 @@
               const paddingTop = basePaddingTop + (n._precomputedPaddingTop || 0);
               
               // WhileLoopActionUsage needs more bottom padding for 'until condition' label
-              const paddingBottom = isWhileLoop ? (CP?.whileLoopBottom ?? 70) : (CP?.bottom ?? 10);
+              const footerPad = Number(n._featureUsageFooterHeight) || 0;
+              const paddingBottom =
+                (isWhileLoop ? (CP?.whileLoopBottom ?? 70) : (CP?.bottom ?? 10)) + footerPad;
 
               // 컨테이너 내부: containerChildSpacing으로 actor 등 엣지 없는 자식 노드 간 세로 간격 제어
               // (별도 connected component로 처리되므로 componentComponentSpacing 사용)

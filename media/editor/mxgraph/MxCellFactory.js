@@ -67,6 +67,19 @@
      * 부모 셀 크기를 자식 셀이 모두 포함되도록 확장 + 겹침 해소
      * 깊은 중첩부터 처리 (bottom-up)
      */
+    function attachFeatureTypingFooters(graph, cellMap, nodes) {
+        const createFooter = ns.MxGraph.compartment?.createFeatureTypingFooterCells;
+        if (typeof createFooter !== 'function') return;
+        for (const node of nodes) {
+            if (!node || node.hidden || node._collapsed) continue;
+            const names = node.featureTypingFooter;
+            if (!Array.isArray(names) || names.length === 0) continue;
+            const cell = cellMap[node.id];
+            if (!cell) continue;
+            createFooter(graph, cell, names);
+        }
+    }
+
     function resizeParentsToFitChildren(graph, defaultParent, cellMap, nodes) {
         const PADDING = 20;
         const CHILD_GAP = 10;
@@ -110,6 +123,13 @@
 
             // 자식들을 부모 중앙에 배치
             const HEADER_H = 35; // swimlane 헤더 높이
+            const footerReserve =
+                Number(parentCell._nodeData?._featureUsageFooterHeight) ||
+                Number(parentCell._featureUsageFooterHeight) ||
+                0;
+            const footerExtra =
+                Number(ns.Editor?.config?.displaySettings?.featureUsageSlot?.containerExtraBottom) ||
+                0;
             let minX = Infinity, minY = Infinity, maxR = 0, maxB = 0;
             for (const { geo } of childGeos) {
                 minX = Math.min(minX, geo.x);
@@ -122,7 +142,7 @@
             const parentGeoForCenter = graphModel.getGeometry(parentCell);
             if (parentGeoForCenter) {
                 const availW = parentGeoForCenter.width;
-                const availH = parentGeoForCenter.height - HEADER_H;
+                const availH = parentGeoForCenter.height - HEADER_H - footerReserve;
                 // 중앙 오프셋 계산
                 const centerX = Math.max(10, (availW - childrenWidth) / 2);
                 const centerY = Math.max(HEADER_H + 5, HEADER_H + (availH - childrenHeight) / 2);
@@ -167,7 +187,7 @@
                 const pGeo = graphModel.getGeometry(parentCell);
                 if (pGeo) {
                     const fitW = maxRight2 + PADDING;
-                    const fitH = maxBottom2 + PADDING;
+                    const fitH = maxBottom2 + PADDING + footerReserve + footerExtra;
                     // 부모 크기를 자식 fit 크기로 조정 (확장뿐 아니라 축소도)
                     const newGeo = pGeo.clone();
                     newGeo.width = Math.max(fitW, 100); // 최소 100
@@ -285,8 +305,9 @@
 
                 nodes.forEach((node) => ensureCell(node));
 
-                // 부모 셀 크기를 자식 포함하도록 조정
+                // 부모 셀 크기를 자식 포함하도록 조정 (푸터보다 먼저 — 푸터 너비는 최종 parent geo 기준)
                 resizeParentsToFitChildren(graph, parent, cellMap, nodes);
+                attachFeatureTypingFooters(graph, cellMap, nodes);
 
                 edges.forEach(edge => {
                     _createEdge(graph, parent, edge, cellMap, borderNodeIds);

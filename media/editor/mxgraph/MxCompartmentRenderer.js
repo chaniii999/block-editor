@@ -318,8 +318,87 @@
         return cellMap;
     }
 
+    /**
+     * FeatureTyping source usage id -> target definition footer text
+     */
+    function createFeatureTypingFooterCells(graph, vertex, names) {
+        if (!graph || !vertex || !Array.isArray(names) || names.length === 0) {
+            return 0;
+        }
+
+        const DS = window.SELAB?.Editor?.config?.displaySettings;
+        const HR_HEIGHT = DS?.compartment?.separatorHeight ?? 9;
+        const ITEM_HEIGHT = DS?.compartment?.itemHeight ?? 16;
+        const padB = DS?.featureUsageSlot?.paddingBottom ?? 8;
+        const footerH = HR_HEIGHT + names.length * ITEM_HEIGHT + padB;
+
+        const isDark = ns.MxGraph.styleColors?.isDarkTheme?.() || false;
+        const fontColor = isDark ? '#e0e0e0' : '#333333';
+        const hrColor = isDark ? '#555555' : '#888888';
+
+        const parentGeo = vertex.getGeometry();
+        if (!parentGeo) return 0;
+
+        const parentWidth = Math.max(1, parentGeo.width);
+        const parentHeight = Math.max(footerH + 1, parentGeo.height);
+        let y = Math.max(0, parentHeight - footerH);
+        const footerCells = [];
+
+        graph.getModel().beginUpdate();
+        try {
+            y += HR_HEIGHT;
+
+            for (let i = 0; i < names.length; i++) {
+                const name = String(names[i]);
+                const isFirst = i === 0;
+                let itemStyle =
+                    'movable=0;resizable=0;connectable=0;' +
+                    `fillColor=none;strokeColor=none;fontColor=${fontColor};` +
+                    'align=left;fontSize=11;verticalAlign=middle;';
+                if (isFirst) {
+                    itemStyle += 'html=1;overflow=fill;spacingLeft=0;';
+                } else {
+                    itemStyle += 'spacingLeft=14;';
+                }
+                const itemCell = graph.insertVertex(
+                    vertex,
+                    null,
+                    isFirst ? '' : name,
+                    0,
+                    y,
+                    parentWidth,
+                    ITEM_HEIGHT,
+                    itemStyle
+                );
+                if (isFirst) {
+                    itemCell.setValue(
+                        `<div style="box-sizing:border-box;width:100%;border-top:1px solid ${hrColor};` +
+                            `padding-top:2px;padding-left:14px;line-height:${ITEM_HEIGHT - 4}px;">` +
+                            `${name}</div>`
+                    );
+                }
+                itemCell._isFeatureTypingFooter = true;
+                footerCells.push(itemCell);
+                y += ITEM_HEIGHT;
+            }
+
+            if (typeof graph.orderCells === 'function' && footerCells.length > 0) {
+                graph.orderCells(true, footerCells);
+            }
+        } finally {
+            graph.getModel().endUpdate();
+        }
+
+        if (vertex._nodeData) {
+            vertex._nodeData._featureUsageFooterHeight = footerH;
+        }
+        vertex._featureUsageFooterHeight = footerH;
+        return footerH;
+    }
+
     // Export (하위 호환성 유지)
     ns.MxGraph.compartment.createCompartmentCells = createCompartmentCells;
+    ns.MxGraph.compartment.createFeatureTypingFooterCells = createFeatureTypingFooterCells;
     
     // HTML 유틸 함수도 하위 호환성을 위해 노출
     ns.MxGraph.compartment.buildCompartmentHtml = function(compartments, showSeparator) {

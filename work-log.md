@@ -91,6 +91,44 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-16 — FeatureTyping 소스 → 타겟 푸터 텍스트
+
+### 지시
+
+> (로직 최소 변경) FeatureTyping의 소스 노드는 타겟 노드의 **푸터 레이아웃**에 텍스트로 넣을 것.  
+> 예: `battery_p` → `BatterySystem` 이면 `BatterySystem` 푸터에 `battery_p`.
+
+### 수정 (미커밋)
+
+| 파일 | 내용 |
+|------|------|
+| `model/normalizer.js` | `applyFeatureTypingFooters` — 타겟에 `featureTypingFooter[]`, 소스 usage `hidden` |
+| `model/edgeTransformer.js` | 푸터로 표시한 featuretyping 엣지는 렌더·connections에서 제외 |
+| `mxgraph/MxCompartmentRenderer.js` | `createFeatureTypingFooterCells` — 하단 구분선 + 텍스트 행 |
+| `mxgraph/MxVertexBuilder.js` | 버텍스 생성 후 푸터 셀 부착 |
+| `layout.js` / `elkLayout.js` | `_featureUsageFooterHeight` → ELK bottom padding·leaf 높이 |
+| `mxgraph/MxCellFactory.js` | 자식 맞춤 시 푸터 영역 예약 |
+| `mxgraph/MxEdgeBuilder.js` | featuretyping 엣지 미생성(이중 방어) |
+| `displaySettings.js` | `featureUsageSlot` 메트릭 |
+
+### 개선 내용
+
+- `battery_p` 등 **part usage 박스·엣지 제거**, 타입 정의 블록 **하단에 usage id** 표시
+- JSON `id` 우선 (`battery_p`), README 계층·직교 과제에 맞게 시각 단순화
+
+### 확인
+
+- F5 + `tests/test-1.json`: `BatterySystem` 푸터에 `battery_p`, `engine_p` 등
+- `npm run build`
+
+### 후속 수정 — 푸터 구분선이 박스 밖으로 삐져나감
+
+**원인:** 푸터를 `createVertex` 시점(넓은 ELK 폭)에 그린 뒤 `resizeParentsToFitChildren`이 부모 폭을 자식에 맞게 **축소** → HR 셀 너비는 그대로.
+
+**조치:** `resizeParents` **이후** `attachFeatureTypingFooters`로 푸터 부착, HR `overflow=hidden`·`width:100%` box-sizing.
+
+---
+
 ## 보류·참고
 
 | 항목 | 상태 |

@@ -75,6 +75,12 @@
             textPadding: 16,               // Compartment 텍스트 패딩 (줄바꿈 계산용)
         },
 
+        // FeatureTyping 소스 → 타겟 definition 푸터 (part usage 이름)
+        featureUsageSlot: {
+            paddingBottom: 8,
+            containerExtraBottom: 4,       // resizeParents fitH 가산
+        },
+
         // ─── 컨테이너 메트릭 (metrics.js CONTAINER_METRICS) ──────
         container: {
             paddingTop: 16,                // 상단 패딩

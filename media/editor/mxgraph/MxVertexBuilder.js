@@ -367,6 +367,8 @@
             }
         }
 
+        // FeatureTyping 푸터는 MxCellFactory.renderModel에서 resizeParents 이후 부착
+
         // 패키지 노드는 연결 포인트 비활성화
         if (typeReg.isPackageType?.(typeLower) || typeLower === 'package') {
             try {

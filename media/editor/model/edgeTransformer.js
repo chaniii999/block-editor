@@ -110,6 +110,7 @@
             // - ReferenceUsage/AttributeUsage → Definition: 숨김 ❌ (compartment 내부에만 표시)
             if (kl === 'featuretyping' || kl === 'typefeaturing') {
                 const sourceEl = cache.getElementById(conn.source);
+                const targetEl = cache.getElementById(conn.target);
                 if (sourceEl) {
                     const sourceType = String(sourceEl.type || '').toLowerCase();
                     // ReferenceUsage, AttributeUsage에서 나가는 FeatureTyping은 숨김
@@ -117,6 +118,27 @@
                         containmentFiltered++;
                         return false;
                     }
+                }
+                // 푸터로 표시한 usage→definition FeatureTyping은 그래픽 엣지 미표시
+                if (
+                    targetEl?.featureTypingFooter?.length &&
+                    sourceEl &&
+                    !sourceEl.hidden
+                ) {
+                    const st = String(sourceEl.type || sourceEl.kind || '').toLowerCase();
+                    if (
+                        st === 'partusage' ||
+                        st === 'portusage' ||
+                        st === 'attributeusage' ||
+                        st === 'interfaceusage'
+                    ) {
+                        containmentFiltered++;
+                        return false;
+                    }
+                }
+                if (targetEl?.featureTypingFooter?.length && sourceEl?.hidden) {
+                    containmentFiltered++;
+                    return false;
                 }
             }
 

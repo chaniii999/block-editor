@@ -18,6 +18,82 @@
         } catch {}
     }
 
+    function isFeatureTypingKind(kind) {
+        const k = String(kind || '').toLowerCase();
+        return k === 'featuretyping' || k === 'typefeaturing';
+    }
+
+    function normalizeKindKey(kind) {
+        return String(kind || '').toLowerCase().replace(/\s+/g, '');
+    }
+
+    function isFeatureTypingUsageSource(el) {
+        const k = normalizeKindKey(el?.type || el?.kind);
+        return (
+            k === 'partusage' ||
+            k === 'portusage' ||
+            k === 'attributeusage' ||
+            k === 'interfaceusage'
+        );
+    }
+
+    function isFeatureTypingFooterTarget(el) {
+        const k = normalizeKindKey(el?.type || el?.kind);
+        return k.endsWith('definition') || k === 'part' || k === 'port' || k === 'item';
+    }
+
+    function computeFeatureUsageFooterHeight(nameCount) {
+        const DS = ns.Editor?.config?.displaySettings;
+        const hr = Number(DS?.compartment?.separatorHeight ?? 9);
+        const itemH = Number(DS?.compartment?.itemHeight ?? 16);
+        const pad = Number(DS?.featureUsageSlot?.paddingBottom ?? 8);
+        return hr + Math.max(0, nameCount) * itemH + pad;
+    }
+
+    /**
+     * featuretyping: source(usage) → target(definition) — 타겟 푸터에 소스 id 텍스트
+     */
+    function applyFeatureTypingFooters(elements, connections) {
+        if (!Array.isArray(elements) || !Array.isArray(connections)) return;
+        const byId = new Map();
+        for (const el of elements) {
+            if (el?.id != null) byId.set(String(el.id), el);
+        }
+
+        const footerByTarget = new Map();
+        const sourcesToHide = new Set();
+
+        for (const c of connections) {
+            if (!isFeatureTypingKind(c.type || c.kind)) continue;
+            const src = byId.get(String(c.source));
+            const tgt = byId.get(String(c.target));
+            if (!src || !tgt) continue;
+            if (!isFeatureTypingUsageSource(src)) continue;
+            if (!isFeatureTypingFooterTarget(tgt)) continue;
+
+            const label = String(src.id || src.name || '').trim();
+            if (!label) continue;
+            const tid = String(tgt.id);
+            if (!footerByTarget.has(tid)) footerByTarget.set(tid, []);
+            const list = footerByTarget.get(tid);
+            if (!list.includes(label)) list.push(label);
+            sourcesToHide.add(String(src.id));
+        }
+
+        for (const [tid, names] of footerByTarget) {
+            const el = byId.get(tid);
+            if (!el) continue;
+            names.sort((a, b) => a.localeCompare(b));
+            el.featureTypingFooter = names;
+            el._featureUsageFooterHeight = computeFeatureUsageFooterHeight(names.length);
+        }
+
+        for (const sid of sourcesToHide) {
+            const el = byId.get(sid);
+            if (el) el.hidden = true;
+        }
+    }
+
     /**
      * 원본 모델을 에디터용 데이터로 정규화
      * @param {Object} model - 원본 모델 { nodes, edges }
@@ -37,6 +113,9 @@
 
         // 2단계: 엣지 변환
         const connections = transformEdges(edges);
+
+        // 2.4단계: FeatureTyping → 타겟 푸터 텍스트·소스 usage 숨김
+        applyFeatureTypingFooters(elements, connections);
 
         // 2.5단계: redefinition/subsetting 엣지가 있는 노드의 declaredType 제거 (엣지로 표시되므로 라벨 중복 방지)
         const edgeRelSources = new Set(

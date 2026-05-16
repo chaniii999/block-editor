@@ -115,6 +115,15 @@
             el._precomputedPaddingTop = compHeight;
           }
         }
+        if (Array.isArray(el.featureTypingFooter) && el.featureTypingFooter.length > 0) {
+          if (!el._featureUsageFooterHeight) {
+            const hr = DS?.compartment?.separatorHeight ?? 9;
+            const itemH = DS?.compartment?.itemHeight ?? 16;
+            const pad = DS?.featureUsageSlot?.paddingBottom ?? 8;
+            el._featureUsageFooterHeight =
+              hr + el.featureTypingFooter.length * itemH + pad;
+          }
+        }
         continue;
       }
 
@@ -260,6 +269,10 @@
         // 노드 높이 = 줄 수 × 라인 높이 + 패딩
         const totalLines = stereotypeLines.length + nameLines.length;
         nodeHeight = Math.max(40, (totalLines * lineHeight) + vPad);
+
+        if (el._featureUsageFooterHeight) {
+          nodeHeight += el._featureUsageFooterHeight;
+        }
         
       } else {
         // 텍스트 측정 불가 시 문자열 길이 기반 추정
