@@ -326,6 +326,9 @@
                 // 부모 셀 크기를 자식 포함하도록 조정 (푸터보다 먼저 — 푸터 너비는 최종 parent geo 기준)
                 resizeParentsToFitChildren(graph, parent, cellMap, nodes);
                 attachFeatureTypingFooters(graph, cellMap, nodes);
+                if (typeof ns.MxGraph.compartment?.syncAllInteriorDecorWidths === 'function') {
+                    ns.MxGraph.compartment.syncAllInteriorDecorWidths(graph, cellMap);
+                }
 
                 edges.forEach(edge => {
                     _createEdge(graph, parent, edge, cellMap, borderNodeIds);

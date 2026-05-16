@@ -19,6 +19,39 @@
         return ns.MxGraph.compartmentHtml || {};
     }
 
+    function parseStylePx(style, key, fallback) {
+        if (!style) return fallback;
+        const m = String(style).match(new RegExp('(?:^|;)\\s*' + key + '=([^;]+)'));
+        if (!m) return fallback;
+        const n = parseFloat(m[1]);
+        return Number.isFinite(n) ? n : fallback;
+    }
+
+    /**
+     * compartment·푸터 decor 셀 geometry (부모 기준).
+     * x는 spacingLeft만 반영(자식 좌표계). 폭은 stroke만 살짝 줄여 우측 넘침 방지.
+     * html 셀은 overflow=fill 로 geometry 폭을 채워야 구분선이 보임(overflow=hidden+align=left 시 폭 붕괴).
+     */
+    function getVertexDecorBounds(vertex) {
+        const geo = vertex?.getGeometry?.();
+        if (!geo) return { x: 0, width: 1 };
+        const style = vertex.getStyle() || '';
+        const spacingLeft = parseStylePx(style, 'spacingLeft', 0);
+        const spacingRight = parseStylePx(style, 'spacingRight', 0);
+        const strokeTrim = Math.max(1, Math.ceil(parseStylePx(style, 'strokeWidth', 1)));
+        const width = Math.max(1, geo.width - spacingLeft - spacingRight - strokeTrim);
+        return { x: spacingLeft, width };
+    }
+
+    function dividerLineHtml(hrColor) {
+        return (
+            '<div style="display:block;box-sizing:border-box;width:100%;max-width:100%;' +
+            'margin:0;padding:0;border:0;border-top:1px solid ' +
+            hrColor +
+            ';"></div>'
+        );
+    }
+
     /**
      * Compartment key → SysML 항목 타입 매핑
      */
@@ -96,7 +129,12 @@
             const ITEM_HEIGHT = DS?.compartment?.itemHeight ?? 16;
 
             const parentGeo = vertex.getGeometry();
-            const parentWidth = parentGeo.width;
+            const { x: decorX, width: decorW } = getVertexDecorBounds(vertex);
+            const decorStyle =
+                'selectable=0;movable=0;resizable=0;connectable=0;' +
+                'fillColor=none;strokeColor=none;html=1;overflow=fill;' +
+                'align=left;verticalAlign=top;spacingLeft=0;spacingRight=0;';
+            const hrCellsToFront = [];
             const metrics = ns.Editor?.metrics;
             const nodeData = vertex._nodeData;
             
@@ -143,21 +181,23 @@
                     if (isActionFlowKey(key)) {
                         const hrCellAf = graph.insertVertex(
                             vertex, null, '',
-                            0, y, parentWidth, HR_HEIGHT,
-                            'selectable=0;movable=0;resizable=0;connectable=0;' +
-                            'fillColor=none;strokeColor=none;html=1;overflow=fill;'
+                            decorX, y, decorW, HR_HEIGHT,
+                            decorStyle,
                         );
-                        hrCellAf.setValue(`<div style="margin:4px 0;border-top:1px solid ${hrColor};"></div>`);
+                        hrCellAf.setValue(dividerLineHtml(hrColor));
+                        hrCellAf._isInteriorDecor = true;
+                        hrCellsToFront.push(hrCellAf);
                         y += HR_HEIGHT;
                         totalCompHeight += HR_HEIGHT;
                         const afLabel = ns.Editor?.config?.compartmentLabels?.actionFlow ?? 'action flow';
-                        graph.insertVertex(
+                        const afHeaderCell = graph.insertVertex(
                             vertex, null, afLabel,
-                            0, y, parentWidth, HEADER_HEIGHT + HEADER_PADDING,
+                            decorX, y, decorW, HEADER_HEIGHT + HEADER_PADDING,
                             'selectable=0;movable=0;resizable=0;connectable=0;' +
                             `fillColor=none;strokeColor=none;fontStyle=1;fontColor=${fontColor};` +
                             'align=left;spacingLeft=6;fontSize=11;verticalAlign=top;'
                         );
+                        afHeaderCell._isInteriorDecor = true;
                         y += HEADER_HEIGHT + HEADER_PADDING;
                         totalCompHeight += HEADER_HEIGHT + HEADER_PADDING;
                         continue;
@@ -167,22 +207,24 @@
 
                     const hrCell = graph.insertVertex(
                         vertex, null, '',
-                        0, y, parentWidth, HR_HEIGHT,
-                        'selectable=0;movable=0;resizable=0;connectable=0;' +
-                        'fillColor=none;strokeColor=none;html=1;overflow=fill;'
+                        decorX, y, decorW, HR_HEIGHT,
+                        decorStyle,
                     );
-                    hrCell.setValue(`<div style="margin:4px 0;border-top:1px solid ${hrColor};"></div>`);
+                    hrCell.setValue(dividerLineHtml(hrColor));
+                    hrCell._isInteriorDecor = true;
+                    hrCellsToFront.push(hrCell);
                     y += HR_HEIGHT;
                     totalCompHeight += HR_HEIGHT;
 
                     const headerH = HEADER_HEIGHT + HEADER_PADDING;
-                    graph.insertVertex(
+                    const headerCell = graph.insertVertex(
                         vertex, null, key,
-                        0, y, parentWidth, headerH,
+                        decorX, y, decorW, headerH,
                         'selectable=0;movable=0;resizable=0;connectable=0;' +
                         `fillColor=none;strokeColor=none;fontStyle=1;fontColor=${fontColor};` +
                         'align=left;spacingLeft=6;fontSize=11;verticalAlign=top;'
                     );
+                    headerCell._isInteriorDecor = true;
                     y += headerH;
                     totalCompHeight += headerH;
 
@@ -190,11 +232,12 @@
                         if (i === lastRenderIndex && showSeparator) {
                             const trailHrCell = graph.insertVertex(
                                 vertex, null, '',
-                                0, y, parentWidth, HR_HEIGHT,
-                                'selectable=0;movable=0;resizable=0;connectable=0;' +
-                                'fillColor=none;strokeColor=none;html=1;overflow=fill;'
+                                decorX, y, decorW, HR_HEIGHT,
+                                decorStyle,
                             );
-                            trailHrCell.setValue(`<div style="margin:4px 0;border-top:1px solid ${hrColor};"></div>`);
+                            trailHrCell.setValue(dividerLineHtml(hrColor));
+                            trailHrCell._isInteriorDecor = true;
+                            hrCellsToFront.push(trailHrCell);
                             y += HR_HEIGHT;
                             totalCompHeight += HR_HEIGHT;
                         }
@@ -234,7 +277,7 @@
                             } else {
                                 itemLabel = item.body || item.name || '';
                                 let linesCount = 1;
-                                const compMaxWidth = Math.max(10, parentWidth - 20);
+                                const compMaxWidth = Math.max(10, decorW - 20);
                                 if (window.SELAB && window.SELAB.Editor && window.SELAB.Editor.metrics && window.SELAB.Editor.metrics.calculateWrappedLines) {
                                     linesCount = window.SELAB.Editor.metrics.calculateWrappedLines(itemLabel, compMaxWidth);
                                 } else {
@@ -260,7 +303,7 @@
 
                         const itemCell = graph.insertVertex(
                             vertex, itemId, itemLabel,
-                            0, y, parentWidth, itemH,
+                            decorX, y, decorW, itemH,
                             'movable=0;resizable=0;connectable=0;' +
                             `fillColor=none;strokeColor=none;fontColor=${fontColor};` +
                             'align=left;spacingLeft=14;fontSize=11;verticalAlign=top;' +
@@ -300,14 +343,18 @@
                     if (i === lastRenderIndex && showSeparator) {
                         const trailHrCell = graph.insertVertex(
                             vertex, null, '',
-                            0, y, parentWidth, HR_HEIGHT,
-                            'selectable=0;movable=0;resizable=0;connectable=0;' +
-                            'fillColor=none;strokeColor=none;html=1;overflow=fill;'
+                            decorX, y, decorW, HR_HEIGHT,
+                            decorStyle,
                         );
-                        trailHrCell.setValue(`<div style="margin:4px 0;border-top:1px solid ${hrColor};"></div>`);
+                        trailHrCell.setValue(dividerLineHtml(hrColor));
+                        trailHrCell._isInteriorDecor = true;
+                        hrCellsToFront.push(trailHrCell);
                         y += HR_HEIGHT;
                         totalCompHeight += HR_HEIGHT;
                     }
+                }
+                if (hrCellsToFront.length > 0 && typeof graph.orderCells === 'function') {
+                    graph.orderCells(true, hrCellsToFront);
                 }
             } finally {
                 graph.getModel().endUpdate();
@@ -322,9 +369,43 @@
         return cellMap;
     }
 
-    /**
-     * FeatureTyping source usage id -> target definition footer text
-     */
+    function escapeFooterText(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function pinFeatureTypingFooterToBottom(graph, vertex) {
+        const footerH =
+            Number(vertex._featureUsageFooterHeight) ||
+            Number(vertex._nodeData?._featureUsageFooterHeight) ||
+            0;
+        if (!footerH) return;
+        const model = graph.getModel();
+        const parentGeo = vertex.getGeometry();
+        if (!parentGeo) return;
+        const { x: decorX, width: decorW } = getVertexDecorBounds(vertex);
+        model.beginUpdate();
+        try {
+            for (let i = 0; i < model.getChildCount(vertex); i++) {
+                const child = model.getChildAt(vertex, i);
+                if (!child?._isFeatureTypingFooter) continue;
+                const geo = model.getGeometry(child);
+                if (!geo) continue;
+                const next = geo.clone();
+                next.x = decorX;
+                next.width = decorW;
+                next.height = footerH;
+                next.y = Math.max(0, parentGeo.height - footerH);
+                model.setGeometry(child, next);
+            }
+        } finally {
+            model.endUpdate();
+        }
+    }
+
+    /** FeatureTyping 푸터 — 노드 박스 하단 단일 슬롯(구분선 + 텍스트) */
     function createFeatureTypingFooterCells(graph, vertex, names) {
         if (!graph || !vertex || !Array.isArray(names) || names.length === 0) {
             return 0;
@@ -334,6 +415,7 @@
         const HR_HEIGHT = DS?.compartment?.separatorHeight ?? 9;
         const ITEM_HEIGHT = DS?.compartment?.itemHeight ?? 16;
         const padB = DS?.featureUsageSlot?.paddingBottom ?? 8;
+        const padH = DS?.featureUsageSlot?.paddingHorizontal ?? 14;
         const footerH = HR_HEIGHT + names.length * ITEM_HEIGHT + padB;
 
         const isDark = ns.MxGraph.styleColors?.isDarkTheme?.() || false;
@@ -343,52 +425,34 @@
         const parentGeo = vertex.getGeometry();
         if (!parentGeo) return 0;
 
-        const parentWidth = Math.max(1, parentGeo.width);
-        const parentHeight = Math.max(footerH + 1, parentGeo.height);
-        let y = Math.max(0, parentHeight - footerH);
-        const footerCells = [];
+        const { x: decorX, width: decorW } = getVertexDecorBounds(vertex);
+        const footerY = Math.max(0, parentGeo.height - footerH);
+        const textBody = names.map((n) => escapeFooterText(n)).join('<br/>');
+        const footerHtml =
+            '<div style="box-sizing:border-box;width:100%;height:100%;margin:0;' +
+            'padding:' + HR_HEIGHT + 'px ' + padH + 'px ' + padB + 'px ' + padH + 'px;' +
+            'border-top:1px solid ' + hrColor + ';font-size:11px;line-height:' + ITEM_HEIGHT + 'px;' +
+            'color:' + fontColor + ';text-align:left;">' + textBody + '</div>';
+
+        const footerStyle =
+            'selectable=0;movable=0;resizable=0;connectable=0;' +
+            'fillColor=none;strokeColor=none;html=1;overflow=fill;' +
+            'align=left;verticalAlign=bottom;spacingLeft=0;spacingRight=0;';
 
         graph.getModel().beginUpdate();
         try {
-            y += HR_HEIGHT;
-
-            for (let i = 0; i < names.length; i++) {
-                const name = String(names[i]);
-                const isFirst = i === 0;
-                let itemStyle =
-                    'movable=0;resizable=0;connectable=0;' +
-                    `fillColor=none;strokeColor=none;fontColor=${fontColor};` +
-                    'align=left;fontSize=11;verticalAlign=middle;';
-                if (isFirst) {
-                    itemStyle += 'html=1;overflow=fill;spacingLeft=0;';
-                } else {
-                    itemStyle += 'spacingLeft=14;';
-                }
-                const itemCell = graph.insertVertex(
-                    vertex,
-                    null,
-                    isFirst ? '' : name,
-                    0,
-                    y,
-                    parentWidth,
-                    ITEM_HEIGHT,
-                    itemStyle
-                );
-                if (isFirst) {
-                    itemCell.setValue(
-                        `<div style="box-sizing:border-box;width:100%;border-top:1px solid ${hrColor};` +
-                            `padding-top:2px;padding-left:14px;line-height:${ITEM_HEIGHT - 4}px;">` +
-                            `${name}</div>`
-                    );
-                }
-                itemCell._isFeatureTypingFooter = true;
-                footerCells.push(itemCell);
-                y += ITEM_HEIGHT;
-            }
-
-            if (typeof graph.orderCells === 'function' && footerCells.length > 0) {
-                graph.orderCells(true, footerCells);
-            }
+            const footerCell = graph.insertVertex(
+                vertex,
+                null,
+                '',
+                decorX,
+                footerY,
+                decorW,
+                footerH,
+                footerStyle,
+            );
+            footerCell.setValue(footerHtml);
+            footerCell._isFeatureTypingFooter = true;
         } finally {
             graph.getModel().endUpdate();
         }
@@ -400,9 +464,49 @@
         return footerH;
     }
 
+    function syncInteriorDecorCellWidths(graph, vertex) {
+        if (!graph || !vertex) return;
+        const model = graph.getModel();
+        if (!model.isVertex(vertex)) return;
+        const parentGeo = vertex.getGeometry();
+        if (!parentGeo) return;
+        const { x: decorX, width: decorW } = getVertexDecorBounds(vertex);
+        model.beginUpdate();
+        try {
+            for (let i = 0; i < model.getChildCount(vertex); i++) {
+                const child = model.getChildAt(vertex, i);
+                if (!child) continue;
+                if (child._isFeatureTypingFooter) continue;
+                if (!child._isInteriorDecor && !child._isCompartmentItem) continue;
+                const geo = model.getGeometry(child);
+                if (!geo) continue;
+                const next = geo.clone();
+                next.x = decorX;
+                next.width = decorW;
+                model.setGeometry(child, next);
+            }
+            pinFeatureTypingFooterToBottom(graph, vertex);
+        } finally {
+            model.endUpdate();
+        }
+    }
+
+    function syncAllInteriorDecorWidths(graph, cellMap) {
+        if (!graph || !cellMap) return;
+        for (const id of Object.keys(cellMap)) {
+            const cell = cellMap[id];
+            if (!cell) continue;
+            syncInteriorDecorCellWidths(graph, cell);
+        }
+    }
+
     // Export (하위 호환성 유지)
     ns.MxGraph.compartment.createCompartmentCells = createCompartmentCells;
     ns.MxGraph.compartment.createFeatureTypingFooterCells = createFeatureTypingFooterCells;
+    ns.MxGraph.compartment.pinFeatureTypingFooterToBottom = pinFeatureTypingFooterToBottom;
+    ns.MxGraph.compartment.syncAllInteriorDecorWidths = syncAllInteriorDecorWidths;
+    ns.MxGraph.compartment.getVertexDecorBounds = getVertexDecorBounds;
+    ns.MxGraph.compartment.getVertexContentBounds = getVertexDecorBounds;
     
     // HTML 유틸 함수도 하위 호환성을 위해 노출
     ns.MxGraph.compartment.buildCompartmentHtml = function(compartments, showSeparator) {
