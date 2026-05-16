@@ -23,6 +23,18 @@
      * @param {string} kind
      * @returns {boolean}
      */
+    function isSpecializationHierarchyKind(kind) {
+        if (!kind) return false;
+        const k = String(kind).toLowerCase();
+        return (
+            k.includes('specialization') ||
+            k.includes('specialzation') ||
+            k.includes('generalization') ||
+            k.includes('inheritance') ||
+            k === 'subclassification'
+        );
+    }
+
     function isHierarchicalEdgeKind(kind) {
         const typeReg = getTypeRegistry();
         if (typeReg.isHierarchicalEdgeKind) {
@@ -31,7 +43,7 @@
         if (!kind) return false;
         const k = String(kind).toLowerCase();
         if (k.includes('import') || k.includes('expose')) return false;
-        if (k.includes('inheritance') || k.includes('specialization') || k.includes('generalization')) return false;
+        if (isSpecializationHierarchyKind(kind)) return false;
         return (
             k.includes('contain') || k.includes('own') || k.includes('compose') ||
             k.includes('aggregate') || k.includes('nest') || k.includes('member') ||
@@ -410,7 +422,13 @@
             const exitStyle = getBorderNodeExitStyle(sourceCell);
             const entryStyle = getBorderNodeEntryStyle(targetCell);
             if (exitStyle) style += `;${exitStyle}`;
+            else if (isSpecializationHierarchyKind(edgeTypeLower)) {
+                style += ';exitX=0.5;exitY=0;exitPerimeter=0';
+            }
             if (entryStyle) style += `;${entryStyle}`;
+            else if (isSpecializationHierarchyKind(edgeTypeLower)) {
+                style += ';entryX=0.5;entryY=1;entryPerimeter=0';
+            }
         }
 
         const edgeCell = graph.insertEdge(parent, id, edgeLabel, sourceCell, targetCell, style);

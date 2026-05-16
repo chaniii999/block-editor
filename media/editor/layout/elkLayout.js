@@ -6,6 +6,19 @@
 (function() {
   const NS = (window.SELAB = window.SELAB || {});
 
+  /** JSON: source=자식, target=부모. ELK layered+DOWN은 sources가 위 레이어. */
+  function isSpecializationHierarchyKind(kind) {
+    if (!kind) return false;
+    const k = String(kind).toLowerCase();
+    return (
+      k.includes('specialization') ||
+      k.includes('specialzation') ||
+      k.includes('generalization') ||
+      k.includes('inheritance') ||
+      k === 'subclassification'
+    );
+  }
+
   /**
    * Apply ELK (Eclipse Layout Kernel) layout to the given in-memory diagram data.
    * diagramData: { elements: [{id, name, width, height, x, y}], connections: [{id, source, target}] }
@@ -41,7 +54,7 @@
         if (k === 'composition' || k.includes('composition') || k === 'shared') {
           return false;
         }
-        if (k.includes('inheritance') || k.includes('specialization') || k.includes('generalization')) {
+        if (isSpecializationHierarchyKind(kind)) {
             return false;
         }
         return (
@@ -159,9 +172,15 @@
               if (sParent !== tParent) continue;
             }
           }
-          const pairKey = `${s}__${t}`;
+          let elkSource = s;
+          let elkTarget = t;
+          if (isSpecializationHierarchyKind(kind)) {
+            elkSource = t;
+            elkTarget = s;
+          }
+          const pairKey = `${elkSource}__${elkTarget}`;
           seenPairs.add(pairKey);
-          kept.push({ id: e.id || pairKey, sources: [s], targets: [t] });
+          kept.push({ id: e.id || pairKey, sources: [elkSource], targets: [elkTarget] });
         }
 
         // 2차: flow 엣지의 border node → 부모 노드 해석 (같은 컨테이너 내부만)
@@ -383,6 +402,15 @@
             if (kind.includes('succession') || kind.includes('then') || kind.includes('transition')) {
               if (!successionTargetsBySource.has(s)) successionTargetsBySource.set(s, []);
               successionTargetsBySource.get(s).push(t);
+            }
+            if (isSpecializationHierarchyKind(kind)) {
+              const childId = s;
+              const parentId = t;
+              if (childIds.has(childId) && childIds.has(parentId)) {
+                adj.get(parentId).push(childId);
+                indeg.set(childId, (indeg.get(childId) || 0) + 1);
+              }
+              continue;
             }
             if (!(kind.includes('control') || kind.includes('flow') || kind.includes('succession') || kind.includes('then') || kind.includes('transition') || kind === 'body' || kind === 'composition' || kind === 'shared' || kind === 'featuretyping')) continue;
             // fork 병렬 분기 간 flow 엣지는 순서 제약에서 제외
@@ -759,6 +787,7 @@
         }
       }
       applyPositions(result, 0, 0);
+      applySpecializationVerticalLayout(diagramData, ELK_CFG);
 
       /**
        * ELK 엣지 라우팅 결과를 diagramData.connections에 적용
@@ -774,6 +803,12 @@
           for (const elkEdge of elkNode.edges) {
             const connection = diagramData.connections.find(c => c.id === elkEdge.id);
             if (!connection) continue;
+
+            const connKind = connection.kind || connection.type;
+            if (isSpecializationHierarchyKind(connKind)) {
+              delete connection.waypoints;
+              continue;
+            }
 
             // ELK edge sections에서 경로 정보 추출
             if (elkEdge.sections && elkEdge.sections.length > 0) {
@@ -843,6 +878,97 @@
       fallbackGrid(diagramData);
     }
   };
+
+  /**
+   * specialization/generalization: 부모(target)가 자식(source)보다 위(y 작음)에 오도록 루트 노드 Y 보정
+   * ELK 복합 그래프에서는 엣지 방향만으로 루트 형제 순서가 안 바뀌는 경우가 있어 후처리
+   */
+  function applySpecializationVerticalLayout(diagramData, elkCfg) {
+    const elements = Array.isArray(diagramData?.elements) ? diagramData.elements : [];
+    const connections = Array.isArray(diagramData?.connections) ? diagramData.connections : [];
+    if (elements.length === 0 || connections.length === 0) return;
+
+    const byId = new Map();
+    for (const el of elements) {
+      if (el?.id) byId.set(el.id, el);
+    }
+
+    const childToParent = new Map();
+    const involved = new Set();
+
+    for (const conn of connections) {
+      const kind = conn.kind || conn.type;
+      if (!isSpecializationHierarchyKind(kind)) continue;
+      const childId = conn.source;
+      const parentId = conn.target;
+      if (!byId.has(childId) || !byId.has(parentId) || childId === parentId) continue;
+      childToParent.set(childId, parentId);
+      involved.add(childId);
+      involved.add(parentId);
+    }
+    if (involved.size === 0) return;
+
+    function layoutRootId(nodeId) {
+      let cur = byId.get(nodeId);
+      while (cur?.parent && byId.has(cur.parent)) {
+        cur = byId.get(cur.parent);
+      }
+      return cur?.id || nodeId;
+    }
+
+    const layer = new Map();
+    function assignLayer(nodeId) {
+      if (layer.has(nodeId)) return layer.get(nodeId);
+      const parentId = childToParent.get(nodeId);
+      const value = parentId ? assignLayer(parentId) + 1 : 0;
+      layer.set(nodeId, value);
+      return value;
+    }
+    for (const id of involved) assignLayer(id);
+
+    const rootsByLayer = new Map();
+    for (const id of involved) {
+      const rootId = layoutRootId(id);
+      const l = layer.get(id) ?? 0;
+      const prev = rootsByLayer.get(rootId);
+      rootsByLayer.set(rootId, prev == null ? l : Math.max(prev, l));
+    }
+
+    const layerToRoots = new Map();
+    for (const [rootId, l] of rootsByLayer) {
+      if (!layerToRoots.has(l)) layerToRoots.set(l, []);
+      layerToRoots.get(l).push(rootId);
+    }
+
+    const layerGap = Number(elkCfg?.nodeNodeBetweenLayers) || 80;
+    const startY = Math.min(
+      ...[...rootsByLayer.keys()].map((id) => Number(byId.get(id)?.y) || 0)
+    );
+
+    let bandY = Number.isFinite(startY) ? startY : 50;
+    const sortedLayers = [...layerToRoots.keys()].sort((a, b) => a - b);
+
+    for (const l of sortedLayers) {
+      const rootIds = layerToRoots.get(l) || [];
+      let bandHeight = 0;
+      for (const rootId of rootIds) {
+        const n = byId.get(rootId);
+        bandHeight = Math.max(bandHeight, Number(n?.height) || 60);
+      }
+      for (const rootId of rootIds) {
+        const n = byId.get(rootId);
+        if (!n) continue;
+        const dy = bandY - (Number(n.y) || 0);
+        if (Math.abs(dy) > 1) {
+          n.y = (Number(n.y) || 0) + dy;
+          if (!n.parent) {
+            n.relativeY = n.y;
+          }
+        }
+      }
+      bandY += bandHeight + layerGap;
+    }
+  }
 
   function fallbackGrid(diagramData) {
     const DS = window.SELAB?.Editor?.config?.displaySettings;
