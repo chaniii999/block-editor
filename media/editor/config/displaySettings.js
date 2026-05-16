@@ -31,6 +31,11 @@
             mxDefault: '11px Arial',       // mxGraph 기본 폰트
         },
 
+        // ─── 라벨 (mxGraph·precomputeNodeSizes) ───────────────────
+        labels: {
+            showStereotypes: false,        // BDD: «part def» 등 스테레오타입 미표시
+        },
+
         // ─── 노드 사전계산 크기 (layout.js precomputeNodeSizes) ──
         nodePrecompute: {
             minWidth: 120,                 // 노드 최소 폭

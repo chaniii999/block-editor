@@ -102,8 +102,12 @@
         
         // comment/documentation은 별도 처리 (상위에서 이미 body 사용)
         
-        // Language Extension 키워드의 경우 customStereotype 우선 사용
         const utils = ns.Editor?.utils;
+        if (utils?.shouldShowStereotypesInUi?.() === false) {
+            return displayName;
+        }
+
+        // Language Extension 키워드의 경우 customStereotype 우선 사용
         const stereotype = customStereotype || utils?.getStereotypeText?.(type);
         if (stereotype) {
             // 스테레오타입에 abstract/variation 키워드 포함
@@ -136,6 +140,9 @@
      * @returns {string}
      */
     function getTypeKeyword(type, options = {}) {
+        if (ns.Editor?.utils?.shouldShowStereotypesInUi?.() === false) {
+            return '';
+        }
         const rawType = String(type || '');
         const normalized = rawType.toLowerCase().replace(/\s+/g, '');
         const { isIndividual } = options;

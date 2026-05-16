@@ -42,7 +42,12 @@
     return s;
   }
 
+  function shouldShowStereotypesInUi() {
+    return ns.Editor?.config?.displaySettings?.labels?.showStereotypes !== false;
+  }
+
   function getStereotypeText(s) {
+    if (!shouldShowStereotypesInUi()) return '';
     const t = String(s || '').toLowerCase().replace(/\s+/g, '');
     
     // Definition 타입 (23종)
@@ -253,6 +258,7 @@
     computeChildrenMap, 
     isRelationshipNode, 
     normalizeSelectionName, 
+    shouldShowStereotypesInUi,
     getStereotypeText, 
     wrapByWidth, 
     getVisibilitySymbol,

@@ -71,6 +71,8 @@
         let adjustedHeight = height;
         let styleOverride;
 
+        const showStereotypes = ns.Editor?.utils?.shouldShowStereotypesInUi?.() !== false;
+
         if (typeReg.isAnnotationType?.(typeLower) || typeLower === 'comment' || typeLower === 'documentation' || typeLower === 'metadatausage') {
             let stereotype;
             if (typeLower === 'documentation') stereotype = '«doc»';
@@ -82,11 +84,17 @@
                 bodyText.replace(/^\/\*\s*/, '').replace(/\s*\*\/$/, '').trim()
             );
             const hasRealName = node.name && node.name !== 'doc' && node.name !== 'comment' && node.name !== 'metadata' && node.name !== typeLower;
-            label = hasRealName ? `${stereotype}\n${node.name}` : stereotype;
+            if (showStereotypes) {
+                label = hasRealName ? `${stereotype}\n${node.name}` : stereotype;
+            } else {
+                label = hasRealName ? String(node.name) : '';
+            }
 
             if (cleanBody) {
-                label += `\n${cleanBody}`;
-                const baseLines = hasRealName ? 2 : 1;
+                label += label ? `\n${cleanBody}` : cleanBody;
+                const baseLines = showStereotypes
+                    ? (hasRealName ? 2 : 1)
+                    : (hasRealName ? 1 : 0);
                 const bodyLines = cleanBody.split('\n').length;
                 const extraLines = baseLines + bodyLines;
                 adjustedHeight = Math.max(height, 40 + (extraLines * 16) + 20);
@@ -154,8 +162,12 @@
             }
 
         } else if (isTerminateRole) {
-            const stereotype = node.stereotype || '«terminate»';
-            label = `${stereotype}\n${node.name}`;
+            if (showStereotypes) {
+                const stereotype = node.stereotype || '«terminate»';
+                label = `${stereotype}\n${node.name}`;
+            } else {
+                label = String(node.name || '');
+            }
 
         } else {
             label = formatLabel(node.name, elementType, {
