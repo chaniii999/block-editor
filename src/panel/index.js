@@ -6,8 +6,11 @@ const { fetchDiagramModel } = require("./LanguageServerBridge");
 const { buildBlockModel } = require("./BlockModelBuilder");
 const { createMessageHandler } = require("./PanelMessageHandler");
 
-async function fetchBlockModel(uri) {
-  const { model: rawModel, visibilityConfig } = await fetchDiagramModel(uri);
+async function fetchBlockModel(uri, rawText) {
+  const { model: rawModel, visibilityConfig } = await fetchDiagramModel(
+    uri,
+    rawText,
+  );
   const model = buildBlockModel(rawModel);
   return {
     model,

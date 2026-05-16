@@ -50,13 +50,14 @@ async function activate(context) {
     }),
   );
 
-  // JSON 파일 저장 시 자동 리프레시
+  // JSON 저장·편집 및(개발 시) media/editor 변경 시 자동 갱신
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((document) => {
       if (document.languageId !== "json") return;
       BlockDiagramPanel.scheduleRefreshForUri(document.uri, 0);
     }),
   );
+  BlockDiagramPanel.installAutoRefresh(context);
 }
 
 function deactivate() {}

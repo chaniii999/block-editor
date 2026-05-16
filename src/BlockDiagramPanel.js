@@ -35,8 +35,58 @@ function resolveUiMediaRoot(context) {
 class BlockDiagramPanel {
   static panels = new Map();
   static refreshTimers = new Map();
+  static webviewReloadTimer = null;
   static activePanelKey = undefined;
   static activeWebviewUri = null;
+
+  static _getOpenDocumentText(uri) {
+    if (!uri) return undefined;
+    const key = uri.toString();
+    const doc = vscode.workspace.textDocuments.find(
+      (d) => d.uri.toString() === key,
+    );
+    return doc?.getText();
+  }
+
+  static installAutoRefresh(context) {
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeTextDocument((event) => {
+        if (event.document.languageId !== "json") return;
+        BlockDiagramPanel.scheduleRefreshForUri(event.document.uri, 400);
+      }),
+    );
+
+    if (context.extensionMode !== vscode.ExtensionMode.Development) return;
+
+    const mediaPattern = new vscode.RelativePattern(
+      context.extensionUri,
+      "media/editor/**",
+    );
+    const watcher = vscode.workspace.createFileSystemWatcher(mediaPattern);
+    const scheduleWebviewReload = () => {
+      BlockDiagramPanel.scheduleWebviewReload(context, 350);
+    };
+    watcher.onDidChange(scheduleWebviewReload);
+    watcher.onDidCreate(scheduleWebviewReload);
+    watcher.onDidDelete(scheduleWebviewReload);
+    context.subscriptions.push(watcher);
+  }
+
+  static scheduleWebviewReload(context, delayMs = 350) {
+    if (BlockDiagramPanel.webviewReloadTimer) {
+      clearTimeout(BlockDiagramPanel.webviewReloadTimer);
+    }
+    BlockDiagramPanel.webviewReloadTimer = setTimeout(() => {
+      BlockDiagramPanel.webviewReloadTimer = null;
+      for (const panel of BlockDiagramPanel.panels.values()) {
+        try {
+          panel.webview.html = HtmlGenerator.getHtml(context, panel.webview);
+        } catch (err) {
+          console.log("[BlockDiagramPanel] webview reload error", err);
+        }
+      }
+    }, delayMs);
+  }
 
   static async refreshActive() {
     const key = BlockDiagramPanel.activePanelKey;
@@ -92,7 +142,8 @@ class BlockDiagramPanel {
         });
       } catch {}
 
-      const { model, visibilityConfig } = await fetchBlockModel(uri);
+      const rawText = BlockDiagramPanel._getOpenDocumentText(uri);
+      const { model, visibilityConfig } = await fetchBlockModel(uri, rawText);
 
       panel.title = buildPanelTitle(uri);
       panel.webview.postMessage({
