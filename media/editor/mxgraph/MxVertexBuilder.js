@@ -198,6 +198,23 @@
     }
 
     /**
+     * compartment·보더노드·푸터 등 내부 자식이 있으면 헤더 라벨을 상단에 둠
+     */
+    function needsHeaderTopLabelAlign(node, typeLower, isAnnotationNode, isTerminateRole, hasGraphChildren) {
+        if (hasGraphChildren) return true;
+        if (Array.isArray(node.borderNodes) && node.borderNodes.length > 0) return true;
+        if (Array.isArray(node.featureTypingFooter) && node.featureTypingFooter.length > 0) return true;
+        if (!isCompartmentTarget(typeLower, isAnnotationNode, isTerminateRole) || node._collapsed) {
+            return false;
+        }
+        const compartments = Array.isArray(node.compartments) ? node.compartments : [];
+        const visible = compartments.filter((c) => c.key !== 'references');
+        return visible.some(
+            (c) => (Array.isArray(c.items) && c.items.length > 0) || c.headerOnly === true
+        );
+    }
+
+    /**
      * 정규화된 노드를 mxGraph 버텍스로 변환
      * @param {mxGraph} graph - mxGraph 인스턴스
      * @param {Object} parent - 부모 셀
@@ -260,8 +277,11 @@
         style = override.style;
         label = override.label;
 
-        // 자식이 있는 컨테이너 노드: 타이틀을 상단에 배치
-        if (hasGraphChildren && style.includes('verticalAlign=middle')) {
+        // compartment·내부 그래프 자식·보더노드·푸터가 있으면 타이틀을 상단(헤더)에 배치
+        if (
+            needsHeaderTopLabelAlign(node, typeLower, isAnnotationNode, isTerminateRole, hasGraphChildren) &&
+            style.includes('verticalAlign=middle')
+        ) {
             style = style.replace('verticalAlign=middle', 'verticalAlign=top');
         }
 

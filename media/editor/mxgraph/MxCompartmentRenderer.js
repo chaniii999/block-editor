@@ -117,6 +117,10 @@
 
             let y = labelHeight;
             let totalCompHeight = 0;
+            if (nodeData) {
+                nodeData._labelHeight = labelHeight;
+            }
+            vertex._labelHeight = labelHeight;
 
             let lastRenderIndex = -1;
             for (let i = visibleCompartments.length - 1; i >= 0; i--) {
