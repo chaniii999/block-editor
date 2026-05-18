@@ -122,9 +122,17 @@ function extractExplicitParent(node) {
     return normalizeText(rawParent);
 }
 
-function buildDirectParentMap(nodes, edges, resolveNodeKey) {
-    const directParentMap = new Map();
+/** 동일 노드 id가 containment 상 서로 다른 부모에 묶일 때, 추가 인스턴스용 id */
+function containmentCloneId(targetKey, parentKey) {
+    return `${targetKey}__in__${parentKey}`;
+}
 
+/**
+ * containment 엣지 순서대로 자식 id별 부모 id 목록(중복 부모 제거)
+ * @returns {Map<string, string[]>}
+ */
+function collectContainmentParentsByTarget(edges, resolveNodeKey) {
+    const parentsByTarget = new Map();
     for (const edge of edges) {
         if (normalizeEdgeKind(edge) !== 'containment') {
             continue;
@@ -134,7 +142,29 @@ function buildDirectParentMap(nodes, edges, resolveNodeKey) {
         if (!sourceKey || !targetKey || sourceKey === targetKey) {
             continue;
         }
-        directParentMap.set(targetKey, sourceKey);
+        if (!parentsByTarget.has(targetKey)) {
+            parentsByTarget.set(targetKey, []);
+        }
+        const arr = parentsByTarget.get(targetKey);
+        if (!arr.includes(sourceKey)) {
+            arr.push(sourceKey);
+        }
+    }
+    return parentsByTarget;
+}
+
+function buildDirectParentMap(nodes, edges, resolveNodeKey) {
+    const directParentMap = new Map();
+    const parentsByTarget = collectContainmentParentsByTarget(edges, resolveNodeKey);
+
+    for (const [targetKey, parents] of parentsByTarget) {
+        if (!parents.length) {
+            continue;
+        }
+        directParentMap.set(targetKey, parents[0]);
+        for (let i = 1; i < parents.length; i++) {
+            directParentMap.set(containmentCloneId(targetKey, parents[i]), parents[i]);
+        }
     }
 
     for (const node of nodes) {
@@ -159,7 +189,7 @@ function buildDirectParentMap(nodes, edges, resolveNodeKey) {
         }
     }
 
-    return directParentMap;
+    return { directParentMap, parentsByTarget };
 }
 
 function findNearestKeptAncestor(nodeKey, keptNodeKeys, directParentMap, resolveNodeKey) {
@@ -203,7 +233,7 @@ function buildBlockModel(model) {
     const rawNodes = Array.isArray(model?.nodes) ? model.nodes : [];
     const rawEdges = Array.isArray(model?.edges) ? model.edges : [];
     const { nodeByKey, resolveNodeKey } = buildLookup(rawNodes);
-    const directParentMap = buildDirectParentMap(rawNodes, rawEdges, resolveNodeKey);
+    const { directParentMap, parentsByTarget } = buildDirectParentMap(rawNodes, rawEdges, resolveNodeKey);
     const keptNodeKeys = new Set();
 
     for (const node of rawNodes) {
@@ -213,22 +243,66 @@ function buildBlockModel(model) {
         }
     }
 
+    for (const [targetKey, parents] of parentsByTarget) {
+        if (parents.length <= 1 || !keptNodeKeys.has(targetKey)) {
+            continue;
+        }
+        for (let i = 1; i < parents.length; i++) {
+            keptNodeKeys.add(containmentCloneId(targetKey, parents[i]));
+        }
+    }
+
     const filteredNodes = [];
     for (const nodeKey of keptNodeKeys) {
         const rawNode = nodeByKey.get(nodeKey);
-        if (!rawNode) {
+        if (rawNode) {
+            const nextNode = {
+                ...rawNode,
+                id: nodeKey,
+            };
+            const parentKey = findNearestKeptAncestor(nodeKey, keptNodeKeys, directParentMap, resolveNodeKey);
+            if (parentKey) {
+                nextNode.parent = parentKey;
+            } else {
+                delete nextNode.parent;
+            }
+            filteredNodes.push(nextNode);
             continue;
         }
 
+        let templateKey = '';
+        let fallbackParent = '';
+        for (const [tKey, plist] of parentsByTarget) {
+            if (plist.length <= 1 || !keptNodeKeys.has(tKey)) {
+                continue;
+            }
+            for (let i = 1; i < plist.length; i++) {
+                if (containmentCloneId(tKey, plist[i]) === nodeKey) {
+                    templateKey = tKey;
+                    fallbackParent = plist[i];
+                    break;
+                }
+            }
+            if (templateKey) {
+                break;
+            }
+        }
+        if (!templateKey) {
+            continue;
+        }
+        const tpl = nodeByKey.get(templateKey);
+        if (!tpl) {
+            continue;
+        }
         const nextNode = {
-            ...rawNode,
+            ...tpl,
             id: nodeKey,
         };
         const parentKey = findNearestKeptAncestor(nodeKey, keptNodeKeys, directParentMap, resolveNodeKey);
         if (parentKey) {
             nextNode.parent = parentKey;
         } else {
-            delete nextNode.parent;
+            nextNode.parent = fallbackParent;
         }
         filteredNodes.push(nextNode);
     }
