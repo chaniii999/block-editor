@@ -252,6 +252,7 @@
         const _createEdge = ns.MxGraph.factory.createEdge;
         const _createBorderNode = ns.MxGraph.factory.createBorderNode;
         const _distributeOverlappingEdges = ns.MxGraph.factory.distributeOverlappingEdges;
+        const _rerouteAllEdges = ns.MxGraph.factory.rerouteAllEdges;
 
         graphModel.beginUpdate();
         try {
@@ -348,7 +349,13 @@
             return;
         }
 
-        _distributeOverlappingEdges(graph);
+        graph.refresh();
+        if (typeof _rerouteAllEdges === 'function') {
+            _rerouteAllEdges(graph);
+        }
+        if (typeof _distributeOverlappingEdges === 'function') {
+            _distributeOverlappingEdges(graph);
+        }
         graph.refresh();
         hideEmptyStateOverlay(graph);
 

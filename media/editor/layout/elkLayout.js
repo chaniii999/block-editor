@@ -19,6 +19,113 @@
     );
   }
 
+  const ALIGN_EPS = 0.5;
+
+  /** MxEdgeBuilder.simplifyWaypoints 와 동일 — 공선 중간점 제거 */
+  function simplifyCollinearWaypoints(waypoints) {
+    if (!waypoints || waypoints.length <= 2) return waypoints;
+    const out = [waypoints[0]];
+    for (let i = 1; i < waypoints.length - 1; i++) {
+      const prev = out[out.length - 1];
+      const cur = waypoints[i];
+      const next = waypoints[i + 1];
+      const colH =
+        Math.abs(prev.y - cur.y) < ALIGN_EPS &&
+        Math.abs(cur.y - next.y) < ALIGN_EPS;
+      const colV =
+        Math.abs(prev.x - cur.x) < ALIGN_EPS &&
+        Math.abs(cur.x - next.x) < ALIGN_EPS;
+      if (!colH && !colV) out.push(cur);
+    }
+    out.push(waypoints[waypoints.length - 1]);
+    return out;
+  }
+
+  function collectSpecInvolvedNodeIds(connections) {
+    const involved = new Set();
+    for (const conn of connections) {
+      const kind = conn.kind || conn.type;
+      if (!isSpecializationHierarchyKind(kind)) continue;
+      if (conn.source) involved.add(conn.source);
+      if (conn.target) involved.add(conn.target);
+    }
+    return involved;
+  }
+
+  /**
+   * waypoint 미설정 → MxEdgeBuilder.routeEdge 가 buildOrthogonalPath 로 직교 라우팅
+   * (spec·루트·spec 관련 노드 — README 계층·종단 명확성)
+   */
+  function shouldDeferWaypointsToMx(connection, nodeById, specInvolved, resolveIdFn) {
+    const kind = connection.kind || connection.type;
+    if (isSpecializationHierarchyKind(kind)) return true;
+    const s = resolveIdFn(connection.source);
+    const t = resolveIdFn(connection.target);
+    if (!s || !t) return true;
+    const sEl = nodeById.get(s);
+    const tEl = nodeById.get(t);
+    if (!sEl || !tEl) return true;
+    if (specInvolved.has(s) || specInvolved.has(t)) return true;
+    if (!sEl.parent && !tEl.parent) return true;
+    return false;
+  }
+
+  function finalizeConnectionWaypoints(diagramData, nodeById, specInvolved, resolveIdFn) {
+    const connections = Array.isArray(diagramData?.connections)
+      ? diagramData.connections
+      : [];
+    for (const conn of connections) {
+      if (shouldDeferWaypointsToMx(conn, nodeById, specInvolved, resolveIdFn)) {
+        delete conn.waypoints;
+        continue;
+      }
+      if (
+        conn.waypoints &&
+        !isElkWaypointPathReasonable(conn.waypoints, conn, nodeById, resolveIdFn)
+      ) {
+        delete conn.waypoints;
+      }
+    }
+  }
+
+  function elementBounds(el) {
+    return {
+      x: Number(el.x) || 0,
+      y: Number(el.y) || 0,
+      w: Number(el.width) || 120,
+      h: Number(el.height) || 60,
+    };
+  }
+
+  /** MxEdgeBuilder.isPathReasonable 과 동일 기준 — 화면 밖 ELK 경로 폐기 */
+  function isElkWaypointPathReasonable(waypoints, connection, nodeById, resolveIdFn) {
+    if (!waypoints || waypoints.length < 2) return false;
+    const s = resolveIdFn(connection.source);
+    const t = resolveIdFn(connection.target);
+    const sEl = nodeById.get(s);
+    const tEl = nodeById.get(t);
+    if (!sEl || !tEl) return false;
+    const srcB = elementBounds(sEl);
+    const tgtB = elementBounds(tEl);
+    const minX = Math.min(srcB.x, tgtB.x);
+    const minY = Math.min(srcB.y, tgtB.y);
+    const maxX = Math.max(srcB.x + srcB.w, tgtB.x + tgtB.w);
+    const maxY = Math.max(srcB.y + srcB.h, tgtB.y + tgtB.h);
+    const span = Math.max(maxX - minX, maxY - minY, 80);
+    const margin = span * 2 + 96;
+    for (const p of waypoints) {
+      if (
+        p.x < minX - margin ||
+        p.x > maxX + margin ||
+        p.y < minY - margin ||
+        p.y > maxY + margin
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /**
    * Apply ELK (Eclipse Layout Kernel) layout to the given in-memory diagram data.
    * diagramData: { elements: [{id, name, width, height, x, y}], connections: [{id, source, target}] }
@@ -78,9 +185,10 @@
           'elk.layered.spacing.nodeNodeBetweenLayers': String(ELK_CFG?.nodeNodeBetweenLayers ?? 80),
           'elk.spacing.componentComponent': String(ELK_CFG?.componentComponentSpacing ?? 80),
           'elk.layered.spacing.edgeNodeBetweenLayers': String(ELK_CFG?.edgeNodeBetweenLayers ?? 40),
-          'elk.spacing.edgeNode': String(ELK_CFG?.edgeNodeSpacing ?? 40),
+          'elk.spacing.edgeNode': 50,
           'elk.layered.considerModelOrder.strategy': ELK_CFG?.modelOrderStrategy ?? 'NODES_AND_EDGES',
-          'elk.layered.nodePlacement.strategy': ELK_CFG?.nodePlacement ?? 'NETWORK_SIMPLEX',
+          'elk.layered.nodePlacement.strategy': ELK_CFG?.nodePlacement ?? 'BRANDES_KOEPF',
+          'elk.aspectRatio': String(ELK_CFG?.aspectRatio ?? '1.5'),
           'elk.edgeRouting': ELK_CFG?.edgeRouting ?? 'ORTHOGONAL',
           'elk.spacing.edgeEdge': String(ELK_CFG?.edgeEdgeSpacing ?? 15),
           'elk.spacing.edgeEdgeBetweenLayers': String(ELK_CFG?.edgeEdgeBetweenLayers ?? 15),
@@ -172,15 +280,13 @@
               if (sParent !== tParent) continue;
             }
           }
-          let elkSource = s;
-          let elkTarget = t;
+          // spec: ELK 엣지·waypoint 제외 — applySpecialization* + MxEdgeBuilder 직교
           if (isSpecializationHierarchyKind(kind)) {
-            elkSource = t;
-            elkTarget = s;
+            continue;
           }
-          const pairKey = `${elkSource}__${elkTarget}`;
+          const pairKey = `${s}__${t}`;
           seenPairs.add(pairKey);
-          kept.push({ id: e.id || pairKey, sources: [elkSource], targets: [elkTarget] });
+          kept.push({ id: e.id || pairKey, sources: [s], targets: [t] });
         }
 
         // 2차: flow 엣지의 border node → 부모 노드 해석 (같은 컨테이너 내부만)
@@ -787,95 +893,119 @@
         }
       }
       applyPositions(result, 0, 0);
-      applySpecializationVerticalLayout(diagramData, ELK_CFG);
-      applySpecializationAroundParentLayout(diagramData, ELK_CFG);
-      fitDiagramToMargins(diagramData, 48);
+
+      if (NS.Editor?.layout?.bdd?.applyPostLayout) {
+        NS.Editor.layout.bdd.applyPostLayout(diagramData, ELK_CFG);
+      } else {
+        applySpecializationVerticalLayout(diagramData, ELK_CFG);
+        applySpecializationAroundParentLayout(diagramData, ELK_CFG);
+        fitDiagramToMargins(diagramData, 48);
+        resolveSiblingOverlaps(diagramData);
+      }
+
+      const specInvolved = collectSpecInvolvedNodeIds(diagramData.connections);
 
       /**
-       * ELK 엣지 라우팅 결과를 diagramData.connections에 적용
-       * @param {Object} elkNode - ELK 레이아웃 결과 노드
-       * @param {number} offsetX - X 오프셋
-       * @param {number} offsetY - Y 오프셋
+       * ELK sections → connection.waypoints (절대 좌표)
+       * 오프셋은 ELK 트리가 아니 diagramData 컨테이너 x,y (spec 후처리 반영)
        */
-      function applyEdgeRouting(elkNode, offsetX, offsetY) {
+      function applyEdgeRouting(elkNode, containerId) {
         if (!elkNode) return;
 
-        // 현재 레벨의 엣지 처리
+        let offX = 0;
+        let offY = 0;
+        if (containerId != null) {
+          const cont = nodeById.get(containerId);
+          if (cont) {
+            offX = Number(cont.x) || 0;
+            offY = Number(cont.y) || 0;
+          }
+        }
+
         if (Array.isArray(elkNode.edges)) {
           for (const elkEdge of elkNode.edges) {
-            const connection = diagramData.connections.find(c => c.id === elkEdge.id);
+            const connection = diagramData.connections.find((c) => c.id === elkEdge.id);
             if (!connection) continue;
 
-            const connKind = connection.kind || connection.type;
-            if (isSpecializationHierarchyKind(connKind)) {
+            if (
+              shouldDeferWaypointsToMx(
+                connection,
+                nodeById,
+                specInvolved,
+                resolveId,
+              )
+            ) {
               delete connection.waypoints;
               continue;
             }
 
-            // ELK edge sections에서 경로 정보 추출
             if (elkEdge.sections && elkEdge.sections.length > 0) {
               const section = elkEdge.sections[0];
               const waypoints = [];
 
-              // 시작점
               if (section.startPoint) {
                 waypoints.push({
-                  x: offsetX + section.startPoint.x,
-                  y: offsetY + section.startPoint.y
+                  x: offX + section.startPoint.x,
+                  y: offY + section.startPoint.y,
                 });
               }
-
-              // 중간점 (bendPoints)
               if (Array.isArray(section.bendPoints)) {
-                section.bendPoints.forEach(bp => {
+                for (const bp of section.bendPoints) {
                   waypoints.push({
-                    x: offsetX + bp.x,
-                    y: offsetY + bp.y
+                    x: offX + bp.x,
+                    y: offY + bp.y,
                   });
-                });
+                }
               }
-
-              // 끝점
               if (section.endPoint) {
                 waypoints.push({
-                  x: offsetX + section.endPoint.x,
-                  y: offsetY + section.endPoint.y
+                  x: offX + section.endPoint.x,
+                  y: offY + section.endPoint.y,
                 });
               }
 
-              if (waypoints.length >= 2) {
-                connection.waypoints = waypoints;
+              const simplified = simplifyCollinearWaypoints(waypoints);
+              if (
+                simplified &&
+                simplified.length >= 2 &&
+                isElkWaypointPathReasonable(
+                  simplified,
+                  connection,
+                  nodeById,
+                  resolveId,
+                )
+              ) {
+                connection.waypoints = simplified;
+              } else {
+                delete connection.waypoints;
               }
             }
           }
         }
 
-        // 자식 노드의 엣지 재귀 처리
         if (Array.isArray(elkNode.children)) {
           for (const child of elkNode.children) {
-            const absX = offsetX + (child.x || 0);
-            const absY = offsetY + (child.y || 0);
-            applyEdgeRouting(child, absX, absY);
+            applyEdgeRouting(child, child.id);
           }
         }
       }
 
-      // Apply edge routing from ELK
-      applyEdgeRouting(result, 0, 0);
+      applyEdgeRouting(result, null);
+      finalizeConnectionWaypoints(diagramData, nodeById, specInvolved, resolveId);
 
-      // Post-process: align nodes in the same container & rank horizontally
-      // RE-ENABLED: ELK spacing을 고려하도록 개선된 alignRanks 사용
       if (typeof NS.alignRanks === 'function') {
-        try { 
-          NS.alignRanks(diagramData, { 
+        try {
+          NS.alignRanks(diagramData, {
             debug: false,
             preserveElkSpacing: true,
-          }); 
-        } catch (e) { 
-          console.log('[applyElkLayout] alignRanks failed', e); 
+          });
+        } catch (e) {
+          console.log('[applyElkLayout] alignRanks failed', e);
         }
       }
-      resolveSiblingOverlaps(diagramData);
+      if (!NS.Editor?.layout?.bdd?.resolveSiblingOverlaps) {
+        resolveSiblingOverlaps(diagramData);
+      }
     } catch (err) {
       console.log('[applyElkLayout] error - falling back to grid', err);
       fallbackGrid(diagramData);

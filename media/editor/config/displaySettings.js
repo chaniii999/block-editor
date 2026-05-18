@@ -117,30 +117,40 @@
             bottomPadding: 4,              // 하단 여백 (최소화)
         },
 
+        // ─── BDD 후처리 (bddLayout.js · specEdgeRouter.js) ───────
+        bdd: {
+            specLayerGap: 120,
+            specSiblingGap: 120,
+            specCorridorGap: 44,
+            diagramMargin: 56,
+            siblingOverlapGap: 32,
+        },
+
         // ─── ELK 레이아웃 설정 (elkLayout.js) ────────────────────
         elk: {
             // 알고리즘
             algorithm: 'layered',
             direction: 'DOWN',
             edgeRouting: 'ORTHOGONAL',
-            nodePlacement: 'NETWORK_SIMPLEX',
+            nodePlacement: 'BRANDES_KOEPF',
+            aspectRatio: 1.5,
             crossingMinimization: 'LAYER_SWEEP',
             modelOrderStrategy: 'NODES_AND_EDGES',
             compactionStrategy: 'EDGE_LENGTH',
             // 간격
-            nodeNodeSpacing: 100,           // 동일 레이어 내 노드 간 간격
-            nodeNodeBetweenLayers: 80,    // 레이어 사이 노드 간 간격
-            componentComponentSpacing: 80, // 연결 컴포넌트 간 간격 (엣지 없는 독립 노드 그룹 사이)
-            edgeNodeBetweenLayers: 40,     // 레이어 사이 엣지-노드 간 간격
-            edgeNodeSpacing: 40,           // 동일 레이어 내 엣지-노드 간 간격
-            edgeEdgeSpacing: 15,           // 엣지-엣지 간 최소 간격
-            edgeEdgeBetweenLayers: 15,     // 레이어 간 엣지-엣지 간격
+            nodeNodeSpacing: 200,
+            nodeNodeBetweenLayers: 160,
+            componentComponentSpacing: 120,
+            edgeNodeBetweenLayers: 48,
+            edgeNodeSpacing: 48,
+            edgeEdgeSpacing: 40,
+            edgeEdgeBetweenLayers: 40,
             thoroughness: 7,               // 레이아웃 품질 (높을수록 정확)
             mergeEdges: false,             // 같은 방향 엣지 병합
             mergeHierarchyEdges: false,    // 계층 엣지 병합
             compactConnectedComponents: true, // 연결된 컴포넌트 압축
             // 컨테이너 내부 간격 (actor 등 엣지 없는 자식 노드 간 세로 간격)
-            containerChildSpacing: 40,
+            containerChildSpacing: 48,
             // 컨테이너 내부 패딩
             containerPadding: {
                 top: 60,                   // 기본 상단 패딩

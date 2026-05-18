@@ -195,6 +195,7 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('mxgraph/MxCompartmentRenderer.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxLoopBodyRenderer.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxVertexBuilder.js')}"></script>
+    <script nonce="${nonce}" src="${es('mxgraph/specEdgeRouter.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxEdgeBuilder.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxCellFactory.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxHistoryManager.js')}"></script>
@@ -243,6 +244,7 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('core.js')}"></script>
     <!-- ELK -->
     <script nonce="${nonce}" src="${elk.toString()}?${version}"></script>
+    <script nonce="${nonce}" src="${es('layout/bddLayout.js')}"></script>
     <script nonce="${nonce}" src="${es('layout/elkLayout.js')}"></script>
     <script nonce="${nonce}" src="${es('layout/alignRanks.js')}"></script>
     <!-- Editor services -->

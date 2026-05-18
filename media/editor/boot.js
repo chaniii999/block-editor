@@ -923,6 +923,10 @@
           Object.keys(guiData.nodes).length,
           "개 (나머지는 ELK 위치 유지)",
         );
+        ns.Editor._mxGraph.refresh();
+        ns.MxGraph.factory?.rerouteAllEdges?.(ns.Editor._mxGraph);
+        ns.MxGraph.factory?.distributeOverlappingEdges?.(ns.Editor._mxGraph);
+        ns.Editor._mxGraph.refresh();
       }
       // 전체 위치 저장 (guiData 노드 + ELK 위치 노드 모두)
       saveAllNodeGeometry(ns.Editor._mxGraph);
