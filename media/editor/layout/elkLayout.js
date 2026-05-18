@@ -899,6 +899,9 @@
       } else {
         applySpecializationVerticalLayout(diagramData, ELK_CFG);
         applySpecializationAroundParentLayout(diagramData, ELK_CFG);
+        if (typeof NS.Editor?.layout?.bdd?.packContainmentChildrenHorizontally === 'function') {
+          NS.Editor.layout.bdd.packContainmentChildrenHorizontally(diagramData);
+        }
         fitDiagramToMargins(diagramData, 48);
         resolveSiblingOverlaps(diagramData);
       }

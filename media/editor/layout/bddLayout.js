@@ -215,6 +215,128 @@
         }
     }
 
+    function shouldPackContainmentChildrenHorizontally(parentEl) {
+        if (!parentEl) return false;
+        const t = String(parentEl.type || '').toLowerCase();
+        if (t.includes('ifaction') || t === 'elseifaction' || t === 'elseaction') return false;
+        if (t.includes('whileloop')) return false;
+        if (t.includes('statemachine') || t.includes('activity')) return false;
+        if (
+            Array.isArray(parentEl.compartments) &&
+            parentEl.compartments.some((c) => c && c.key === 'actionFlow')
+        ) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * ELK layered는 컨테이너 안 association 등으로 자식이 세로 레이어로 쌓이기 쉬움.
+     * BDD식 블록(액션 플로우 제외)의 직접 자식만 한 행으로 가로 배치.
+     */
+    function packContainmentChildrenHorizontally(diagramData) {
+        const elements = Array.isArray(diagramData?.elements)
+            ? diagramData.elements
+            : [];
+        const visible = elements.filter((e) => e && !e.hidden && e.id);
+        if (visible.length < 2) return;
+
+        const byId = indexElements(elements);
+        const DS = NS.Editor?.config?.displaySettings;
+        const CP = DS?.elk?.containerPadding || {};
+        const gap =
+            Number(DS?.bdd?.containmentRowGap) ||
+            Number(DS?.elk?.containerChildSpacing) ||
+            28;
+
+        function shiftDescendantsAbsOnly(el, dx, dy) {
+            el.x = (Number(el.x) || 0) + dx;
+            el.y = (Number(el.y) || 0) + dy;
+            for (const c of visible) {
+                if (String(c.parent) === String(el.id)) {
+                    shiftDescendantsAbsOnly(c, dx, dy);
+                }
+            }
+        }
+
+        function shiftSubtreeRigid(el, dx, dy) {
+            el.x = (Number(el.x) || 0) + dx;
+            el.y = (Number(el.y) || 0) + dy;
+            if (el.parent) {
+                el.relativeX = (Number(el.relativeX) || 0) + dx;
+                el.relativeY = (Number(el.relativeY) || 0) + dy;
+            }
+            for (const c of visible) {
+                if (String(c.parent) === String(el.id)) {
+                    shiftDescendantsAbsOnly(c, dx, dy);
+                }
+            }
+        }
+
+        const childrenByParent = new Map();
+        for (const el of visible) {
+            const pid = el.parent ? String(el.parent) : '';
+            if (!pid) continue;
+            if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
+            childrenByParent.get(pid).push(el);
+        }
+
+        for (const [parentId, kids] of childrenByParent) {
+            if (kids.length < 2) continue;
+            const parent = byId.get(parentId);
+            if (!parent || !shouldPackContainmentChildrenHorizontally(parent)) continue;
+
+            const sorted = kids.slice().sort((a, b) => {
+                const ay = Number(a.y) || 0;
+                const by = Number(b.y) || 0;
+                if (Math.abs(ay - by) > 5) return ay - by;
+                return (Number(a.x) || 0) - (Number(b.x) || 0);
+            });
+
+            const topPad = Math.max(
+                Number(parent._precomputedPaddingTop) || 0,
+                Number(CP.top) || 60,
+            );
+            const innerTop = (Number(parent.y) || 0) + topPad;
+            const leftPad = Number(CP.left) || 40;
+            const rightPad = Number(CP.right) || 40;
+
+            let totalW = 0;
+            for (const k of sorted) {
+                totalW += Number(k.width) || 120;
+            }
+            totalW += gap * Math.max(0, sorted.length - 1);
+
+            const pw = Number(parent.width) || 120;
+            const needW = totalW + leftPad + rightPad;
+            if (needW > pw) {
+                parent.width = needW;
+            }
+
+            const px = Number(parent.x) || 0;
+            const pw2 = Number(parent.width) || 120;
+            let cx = px + (pw2 - totalW) / 2;
+            for (const k of sorted) {
+                const kw = Number(k.width) || 120;
+                const dx = cx - (Number(k.x) || 0);
+                const dy = innerTop - (Number(k.y) || 0);
+                shiftSubtreeRigid(k, dx, dy);
+                cx += kw + gap;
+            }
+
+            const maxBottom = sorted.reduce((m, k) => {
+                const h = Number(k.height) || 60;
+                return Math.max(m, (Number(k.y) || 0) + h);
+            }, innerTop);
+            const bottomPad = Number(CP.bottom) || 40;
+            const needH = maxBottom - (Number(parent.y) || 0) + bottomPad;
+            const ph = Number(parent.height) || 60;
+            if (needH > ph) {
+                parent.height = needH;
+            }
+        }
+    }
+
     /** 형제 bbox 겹침 해소 (동일 parent) */
     function resolveSiblingOverlaps(diagramData, gap) {
         const elements = Array.isArray(diagramData?.elements)
@@ -344,6 +466,7 @@
         const cfg = getBddCfg(elkCfg);
         applySpecVerticalBands(diagramData, cfg);
         applySpecChildrenSymmetric(diagramData, cfg);
+        packContainmentChildrenHorizontally(diagramData);
         fitDiagramToMargins(diagramData, cfg.margin);
         resolveSiblingOverlaps(diagramData, cfg.siblingPad);
         clearSpecWaypoints(diagramData);
@@ -354,6 +477,7 @@
         applyPostLayout,
         applySpecVerticalBands,
         applySpecChildrenSymmetric,
+        packContainmentChildrenHorizontally,
         resolveSiblingOverlaps,
         fitDiagramToMargins,
         clearSpecWaypoints,

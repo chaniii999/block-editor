@@ -92,6 +92,22 @@
         return labelH;
     }
 
+    /** bddLayout.packContainmentChildrenHorizontally 와 동일 기준 — 액션 다이어그램은 제외 */
+    function isBddStyleLikeContainer(parentNode) {
+        if (!parentNode) return false;
+        const t = String(parentNode.type || '').toLowerCase();
+        if (t.includes('ifaction') || t === 'elseifaction' || t === 'elseaction') return false;
+        if (t.includes('whileloop')) return false;
+        if (t.includes('statemachine') || t.includes('activity')) return false;
+        if (
+            Array.isArray(parentNode.compartments) &&
+            parentNode.compartments.some((c) => c && c.key === 'actionFlow')
+        ) {
+            return false;
+        }
+        return true;
+    }
+
     function resizeParentsToFitChildren(graph, defaultParent, cellMap, nodes) {
         const PADDING = 20;
         const CHILD_GAP = 10;
@@ -135,6 +151,53 @@
 
             const parentNode = parentCell._nodeData;
             const contentTop = getContentAreaTop(parentCell, parentNode);
+            const DS = ns.Editor?.config?.displaySettings;
+            // nodeNodeSpacing(루트·레이어)은 수백 단위일 수 있음 — 컨테이너 안 가로 줄에는 쓰지 않음
+            const siblingGap =
+                Number(DS?.bdd?.containmentRowGap) ||
+                Number(DS?.elk?.containerChildSpacing) ||
+                28;
+
+            // ELK는 association 등으로 컨테이너 안 자식을 세로로 쌓는 경우가 많음.
+            // bddLayout에서 모델 좌표를 가로로 맞춰도, 여기서 mxGeometry를 다시 잡기 전이면
+            // 이후 겹침·센터링이 세로 배치를 유지하므로 BDD식 부모는 셀 기준으로 먼저 한 줄 배치.
+            let packedContainmentRow = false;
+            if (childGeos.length >= 2 && isBddStyleLikeContainer(parentNode)) {
+                const pGeoRow = graphModel.getGeometry(parentCell);
+                if (pGeoRow) {
+                    packedContainmentRow = true;
+                    childGeos.sort(
+                        (a, b) =>
+                            (a.geo.y || 0) - (b.geo.y || 0) ||
+                            (a.geo.x || 0) - (b.geo.x || 0),
+                    );
+                    let totalW = 0;
+                    for (const cg of childGeos) {
+                        totalW += Number(cg.geo.width) || 120;
+                    }
+                    totalW += siblingGap * Math.max(0, childGeos.length - 1);
+                    const innerLeft = 10;
+                    const rowY = contentTop + 5;
+                    const pw = Number(pGeoRow.width) || 200;
+                    const cx0 = (pw - totalW) / 2;
+                    let cx = Number.isFinite(cx0) ? Math.max(innerLeft, cx0) : innerLeft;
+                    for (let ci = 0; ci < childGeos.length; ci++) {
+                        const { cell, geo } = childGeos[ci];
+                        const newGeo = geo.clone();
+                        newGeo.x = cx;
+                        newGeo.y = rowY;
+                        graphModel.setGeometry(cell, newGeo);
+                        childGeos[ci].geo = newGeo;
+                        const nd = cell._nodeData;
+                        if (nd) {
+                            nd.relativeX = newGeo.x;
+                            nd.relativeY = newGeo.y;
+                        }
+                        cx += (Number(newGeo.width) || 120) + siblingGap;
+                    }
+                }
+            }
+
             const footerReserve =
                 Number(parentNode?._featureUsageFooterHeight) ||
                 Number(parentCell._featureUsageFooterHeight) ||
@@ -157,10 +220,13 @@
                 const availH = parentGeoForCenter.height - contentTop - footerReserve;
                 // 중앙 오프셋 계산 (compartment 아래 영역만 사용)
                 const centerX = Math.max(10, (availW - childrenWidth) / 2);
-                const centerY = Math.max(
-                    contentTop + 5,
-                    contentTop + Math.max(0, (availH - childrenHeight) / 2),
-                );
+                // 가로 한 줄로 맞춘 컨테이너는 세로 가운데 정렬하지 않음(상·하 빈 공백 방지)
+                const centerY = packedContainmentRow
+                    ? contentTop + 5
+                    : Math.max(
+                          contentTop + 5,
+                          contentTop + Math.max(0, (availH - childrenHeight) / 2),
+                      );
                 const shiftX = minX - centerX;
                 const shiftY = minY - centerY;
                 if (Math.abs(shiftX) > 2 || Math.abs(shiftY) > 2) {

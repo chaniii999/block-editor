@@ -124,6 +124,8 @@
             specCorridorGap: 44,
             diagramMargin: 56,
             siblingOverlapGap: 32,
+            /** 컨테이너 안 직접 자식 가로 한 줄 간격 (mx resizeParents·bdd 팩 공통) */
+            containmentRowGap: 28,
         },
 
         // ─── ELK 레이아웃 설정 (elkLayout.js) ────────────────────
@@ -138,9 +140,9 @@
             modelOrderStrategy: 'NODES_AND_EDGES',
             compactionStrategy: 'EDGE_LENGTH',
             // 간격
-            nodeNodeSpacing: 200,
-            nodeNodeBetweenLayers: 160,
-            componentComponentSpacing: 120,
+            nodeNodeSpacing: 88,
+            nodeNodeBetweenLayers: 96,
+            componentComponentSpacing: 80,
             edgeNodeBetweenLayers: 48,
             edgeNodeSpacing: 48,
             edgeEdgeSpacing: 40,
@@ -153,10 +155,10 @@
             containerChildSpacing: 48,
             // 컨테이너 내부 패딩
             containerPadding: {
-                top: 60,                   // 기본 상단 패딩
-                left: 40,                  // 좌측 패딩
-                right: 40,                 // 우측 패딩
-                bottom: 40,                // 기본 하단 패딩
+                top: 48,                   // 기본 상단 패딩 (컨테이너 내부 상·하 공백 완화)
+                left: 32,                  // 좌측 패딩
+                right: 32,                 // 우측 패딩
+                bottom: 28,                // 기본 하단 패딩
                 ifActionTop: 90,           // IfAction 상단 패딩 (조건 라벨 공간)
                 whileLoopBottom: 70,       // WhileLoop 하단 패딩 (until 조건 공간)
             },
