@@ -146,6 +146,16 @@
             containmentSpineMinChain: 2,
         },
 
+        // ─── mx 직교 엣지 장애물 회피 (edgeObstacleUtil.js · MxEdgeBuilder) ─
+        edgeObstacle: {
+            /** 노드 bbox 팽창(px) — README 엣지-노드 중첩 없음 */
+            obstacleBuffer: 12,
+            /** 우회 채택 시 원 경로 대비 허용 추가 꺾임 수 */
+            maxExtraBends: 4,
+            maxAvoidIter: 12,
+            maxPathPoints: 16,
+        },
+
         // ─── ELK 레이아웃 설정 (elkLayout.js) ────────────────────
         elk: {
             // 알고리즘

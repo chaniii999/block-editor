@@ -1050,21 +1050,42 @@
     }
   };
 
+  function indexElementsById(elements) {
+    const byId = new Map();
+    for (const el of elements) {
+      if (el?.id && !el.hidden) byId.set(el.id, el);
+    }
+    return byId;
+  }
+
+  /** applyPositions 후 x,y는 절대 — relative에 동일 delta를 더하면 mx 좌표가 깨짐 */
+  function syncRelativeFromAbsolute(node, byId) {
+    if (!node) return;
+    const pid = node.parent;
+    if (!pid || !byId.has(pid)) {
+      node.relativeX = Number(node.x) || 0;
+      node.relativeY = Number(node.y) || 0;
+      return;
+    }
+    const p = byId.get(pid);
+    node.relativeX = (Number(node.x) || 0) - (Number(p.x) || 0);
+    node.relativeY = (Number(node.y) || 0) - (Number(p.y) || 0);
+  }
+
   /**
    * 같은 부모 아래 형제 노드 bbox 겹침 해소 (루트·컨테이너 내부 공통)
    */
   function resolveSiblingOverlaps(diagramData) {
     const elements = Array.isArray(diagramData?.elements) ? diagramData.elements : [];
     const visible = elements.filter((e) => e && !e.hidden && e.id);
+    const byId = indexElementsById(elements);
     const GAP = 24;
     const MAX_PASS = 16;
 
     function bounds(el) {
-      const x = Number(el.relativeX ?? el.x) || 0;
-      const y = Number(el.relativeY ?? el.y) || 0;
       return {
-        x,
-        y,
+        x: Number(el.x) || 0,
+        y: Number(el.y) || 0,
         w: Number(el.width) || 120,
         h: Number(el.height) || 60,
       };
@@ -1080,14 +1101,9 @@
     }
 
     function shiftSubtree(el, dx, dy) {
-      if (dx) {
-        el.x = (Number(el.x) || 0) + dx;
-        if (typeof el.relativeX === 'number') el.relativeX += dx;
-      }
-      if (dy) {
-        el.y = (Number(el.y) || 0) + dy;
-        if (typeof el.relativeY === 'number') el.relativeY += dy;
-      }
+      if (dx) el.x = (Number(el.x) || 0) + dx;
+      if (dy) el.y = (Number(el.y) || 0) + dy;
+      syncRelativeFromAbsolute(el, byId);
       for (const child of visible) {
         if (String(child.parent) === String(el.id)) {
           shiftSubtree(child, dx, dy);
@@ -1300,15 +1316,12 @@
     const dy = minY < m ? m - minY : 0;
     if (dx === 0 && dy === 0) return;
 
+    const byId = indexElementsById(elements);
+
     function shiftSubtree(el) {
       el.x = (Number(el.x) || 0) + dx;
       el.y = (Number(el.y) || 0) + dy;
-      if (!el.parent) {
-        if (typeof el.relativeX === 'number') el.relativeX += dx;
-        else el.relativeX = el.x;
-        if (typeof el.relativeY === 'number') el.relativeY += dy;
-        else el.relativeY = el.y;
-      }
+      syncRelativeFromAbsolute(el, byId);
       for (const child of visible) {
         if (String(child.parent) === String(el.id)) shiftSubtree(child);
       }

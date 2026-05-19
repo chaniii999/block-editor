@@ -95,7 +95,26 @@
             node?._labelHeight ||
             Number(ns.Editor?.config?.displaySettings?.label?.minHeight) ||
             35;
-        return labelH;
+        let top = Math.max(
+            labelH + 6,
+            Number(ns.Editor?.config?.displaySettings?.elk?.containerPadding?.top) ||
+                48,
+        );
+        const metrics = ns.Editor?.metrics;
+        const comps = node?.compartments;
+        if (
+            metrics?.calculateTotalCompartmentsHeight &&
+            Array.isArray(comps) &&
+            comps.length > 0
+        ) {
+            const compH = metrics.calculateTotalCompartmentsHeight(
+                comps,
+                false,
+                Number(node?.width) || Number(parentCell?.geometry?.width) || 120,
+            );
+            top = Math.max(top, labelH + compH + 4);
+        }
+        return top;
     }
 
     /** bddLayout.packContainmentChildrenHorizontally 와 동일 기준 — 액션 다이어그램은 제외 */
@@ -246,7 +265,12 @@
             // bddLayout에서 모델 좌표를 가로로 맞춰도, 여기서 mxGeometry를 다시 잡기 전이면
             // 이후 겹침·센터링이 세로 배치를 유지하므로 BDD식 부모는 셀 기준으로 먼저 한 줄 배치.
             let packedContainmentRow = false;
-            if (childGeos.length >= 2 && isBddStyleLikeContainer(parentNode)) {
+            if (
+                childGeos.length >= 1 &&
+                isBddStyleLikeContainer(parentNode) &&
+                !parentNode?._compactContainmentSpine &&
+                !parentNode?._tightSingleChildContainer
+            ) {
                 const pGeoRow = graphModel.getGeometry(parentCell);
                 if (pGeoRow) {
                     packedContainmentRow = true;
@@ -265,6 +289,11 @@
                     const pw = Number(pGeoRow.width) || 200;
                     const cx0 = (pw - totalW) / 2;
                     let cx = Number.isFinite(cx0) ? Math.max(innerLeft, cx0) : innerLeft;
+                    if (childGeos.length === 1) {
+                        const g0 = childGeos[0].geo;
+                        const w0 = Number(g0.width) || 120;
+                        cx = Math.max(innerLeft, (pw - w0) / 2);
+                    }
                     for (let ci = 0; ci < childGeos.length; ci++) {
                         const { cell, geo } = childGeos[ci];
                         const newGeo = geo.clone();

@@ -179,10 +179,16 @@
             if (kids.length !== 1) {
                 continue;
             }
+            if (countDirectContainmentTargets(start.id, elements, connections) > 1) {
+                continue;
+            }
             const chain = [start];
             let cur = byId.get(kids[0]);
             while (cur) {
                 chain.push(cur);
+                if (countDirectContainmentTargets(cur.id, elements, connections) > 1) {
+                    break;
+                }
                 const nextKids = getStructuralContainmentChildIds(cur.id, elements, connections);
                 if (nextKids.length !== 1) {
                     break;

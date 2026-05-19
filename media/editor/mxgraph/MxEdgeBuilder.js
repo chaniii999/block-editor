@@ -349,6 +349,72 @@
         return ns.MxGraph.specEdgeRouter;
     }
 
+    function getEdgeObstacleUtil() {
+        return ns.MxGraph.edgeObstacle;
+    }
+
+    function getEdgeObstacleCfg() {
+        return ns.Editor?.config?.displaySettings?.edgeObstacle || {};
+    }
+
+    function collectObstaclesForEdge(graph, sourceCell, targetCell) {
+        const util = getEdgeObstacleUtil();
+        if (!util?.collectVertexObstacles) {
+            return [];
+        }
+        const sid = String(
+            sourceCell?._nodeData?.id || sourceCell?.getId?.() || '',
+        );
+        const tid = String(
+            targetCell?._nodeData?.id || targetCell?.getId?.() || '',
+        );
+        return util.collectVertexObstacles(
+            graph,
+            [sid, tid],
+            (c) => getCellAbsBounds(graph, c),
+        );
+    }
+
+    function pathObstacleHitCount(path, graph, sourceCell, targetCell) {
+        const util = getEdgeObstacleUtil();
+        if (!util?.countPathHits || !path || path.length < 2) {
+            return 0;
+        }
+        const obstacles = collectObstaclesForEdge(
+            graph,
+            sourceCell,
+            targetCell,
+        );
+        if (!obstacles.length) {
+            return 0;
+        }
+        const buf = Number(getEdgeObstacleCfg().obstacleBuffer) || 12;
+        return util.countPathHits(path, obstacles, buf);
+    }
+
+    /** 교차가 줄고 꺾임이 과하지 않을 때만 우회 경로 채택 (악화 시 원본 유지) */
+    function refinePathAvoidingObstacles(path, graph, sourceCell, targetCell) {
+        const util = getEdgeObstacleUtil();
+        if (!util?.maybeRefinePath || !path || path.length < 2) {
+            return path;
+        }
+        const obstacles = collectObstaclesForEdge(
+            graph,
+            sourceCell,
+            targetCell,
+        );
+        if (!obstacles.length) {
+            return path;
+        }
+        const cfg = getEdgeObstacleCfg();
+        return util.maybeRefinePath(path, obstacles, {
+            buffer: Number(cfg.obstacleBuffer) || 12,
+            maxExtraBends: Number(cfg.maxExtraBends) || 4,
+            maxIter: Number(cfg.maxAvoidIter) || 12,
+            maxPoints: Number(cfg.maxPathPoints) || 16,
+        });
+    }
+
     function applyRouteStyle(model, edgeCell) {
         let st = model.getStyle(edgeCell) || '';
         st = st.replace(/edgeStyle=[^;]*/g, '');
@@ -473,19 +539,53 @@
                 !targetCell._isBorderNode;
 
             if (elkCandidate) {
-                const path = simplifyWaypoints(elkWps);
+                let path = simplifyWaypoints(elkWps);
                 if (isPathReasonable(path, srcB, tgtB)) {
-                    applyRoute(
-                        graph,
-                        edgeCell,
+                    const hitsBefore = pathObstacleHitCount(
                         path,
-                        exitSide,
-                        entrySide,
+                        graph,
                         sourceCell,
                         targetCell,
                     );
-                    edgeCell._hasElkWaypoints = true;
-                    return;
+                    if (hitsBefore === 0) {
+                        applyRoute(
+                            graph,
+                            edgeCell,
+                            path,
+                            exitSide,
+                            entrySide,
+                            sourceCell,
+                            targetCell,
+                        );
+                        edgeCell._hasElkWaypoints = true;
+                        return;
+                    }
+                    const refined = refinePathAvoidingObstacles(
+                        path,
+                        graph,
+                        sourceCell,
+                        targetCell,
+                    );
+                    const hitsAfter = pathObstacleHitCount(
+                        refined,
+                        graph,
+                        sourceCell,
+                        targetCell,
+                    );
+                    if (hitsAfter < hitsBefore) {
+                        path = simplifyWaypoints(refined);
+                        applyRoute(
+                            graph,
+                            edgeCell,
+                            path,
+                            exitSide,
+                            entrySide,
+                            sourceCell,
+                            targetCell,
+                        );
+                        edgeCell._hasElkWaypoints = true;
+                        return;
+                    }
                 }
                 delete edgeData.waypoints;
             }
@@ -500,13 +600,19 @@
 
         const exitPt = pointOnSide(srcB, exitSide, exitFrac);
         const entryPt = pointOnSide(tgtB, entrySide, entryFrac);
-        const path = buildOrthogonalPath(
+        let path = buildOrthogonalPath(
             exitPt,
             entryPt,
             exitSide,
             entrySide,
             srcB,
             tgtB,
+        );
+        path = refinePathAvoidingObstacles(
+            path,
+            graph,
+            sourceCell,
+            targetCell,
         );
         applyRoute(
             graph,

@@ -49,6 +49,22 @@
         return byId;
     }
 
+    /** ELK는 x,y 절대·relativeX/Y 부모 기준 — 둘에 동일 delta를 더하면 mx 좌표가 깨짐 */
+    function syncRelativeFromAbsolute(node, byId) {
+        if (!node) {
+            return;
+        }
+        const pid = node.parent;
+        if (!pid || !byId?.has(pid)) {
+            node.relativeX = Number(node.x) || 0;
+            node.relativeY = Number(node.y) || 0;
+            return;
+        }
+        const p = byId.get(pid);
+        node.relativeX = (Number(node.x) || 0) - (Number(p.x) || 0);
+        node.relativeY = (Number(node.y) || 0) - (Number(p.y) || 0);
+    }
+
     /** spec 엣지 waypoint 제거 — 렌더 시 SpecEdgeRouter 가 담당 */
     function clearSpecWaypoints(diagramData) {
         const connections = Array.isArray(diagramData?.connections)
@@ -171,14 +187,6 @@
             const sortedLayers = [...layerToNodes.keys()].sort((a, b) => a - b);
             for (const l of sortedLayers) {
                 const nodeIds = layerToNodes.get(l) || [];
-                let bandHeight = 0;
-                for (const id of nodeIds) {
-                    const n = byId.get(id);
-                    bandHeight = Math.max(
-                        bandHeight,
-                        Number(n?.height) || 60,
-                    );
-                }
                 for (const id of nodeIds) {
                     const n = byId.get(id);
                     if (!n) {
@@ -192,13 +200,21 @@
                     const dy = bandY - oldY;
                     if (Math.abs(dy) > 1) {
                         n.y = oldY + dy;
-                        if (!n.parent) {
-                            n.relativeY = n.y;
-                        }
-                        shiftDescendantsOf(n.id, 0, dy, visible);
+                        syncRelativeFromAbsolute(n, byId);
+                        shiftDescendantsOf(n.id, 0, dy, visible, byId);
                     }
                 }
-                bandY += bandHeight + layerGap;
+                let layerBottom = bandY;
+                for (const id of nodeIds) {
+                    const n = byId.get(id);
+                    if (!n) {
+                        continue;
+                    }
+                    const bottom =
+                        (Number(n.y) || 0) + (Number(n.height) || 60);
+                    layerBottom = Math.max(layerBottom, bottom);
+                }
+                bandY = layerBottom + layerGap;
             }
         }
     }
@@ -237,6 +253,7 @@
             return;
         }
 
+        const visible = elements.filter((e) => e && !e.hidden && e.id);
         const byId = indexElements(elements);
         const childToParents = buildSpecChildToParents(connections, byId);
         const gap = Math.max(Number(cfg.corridorGap) + 20, 40);
@@ -252,11 +269,33 @@
                 return;
             }
             n.y = (Number(n.y) || 0) + dy;
-            if (!n.parent) {
-                n.relativeY = n.y;
-            }
+            syncRelativeFromAbsolute(n, byId);
+            // containment 자식(Channel 등)도 함께 이동 — 부모만 올리면 test-5 Bus·Channel 겹침
+            shiftDescendantsOf(nodeId, 0, dy, visible, byId);
             for (const pid of childToParents.get(nodeId) || []) {
                 shiftSpecAncestorsUp(pid, dy, visited);
+            }
+        }
+
+        function shiftSpecChildDown(nodeId, dy, visited) {
+            if (!dy || visited.has(nodeId)) {
+                return;
+            }
+            visited.add(nodeId);
+            const n = byId.get(nodeId);
+            if (!n) {
+                return;
+            }
+            n.y = (Number(n.y) || 0) + dy;
+            syncRelativeFromAbsolute(n, byId);
+            shiftDescendantsOf(nodeId, 0, dy, visible, byId);
+            for (const conn of connections) {
+                if (!isSpecKind(conn.kind || conn.type)) {
+                    continue;
+                }
+                if (conn.target === nodeId) {
+                    shiftSpecChildDown(conn.source, dy, visited);
+                }
             }
         }
 
@@ -295,13 +334,36 @@
                     moved = true;
                 }
             }
+
+            for (const conn of connections) {
+                if (!isSpecKind(conn.kind || conn.type)) {
+                    continue;
+                }
+                const child = byId.get(conn.source);
+                const parent = byId.get(conn.target);
+                if (!child || !parent || child.hidden || parent.hidden) {
+                    continue;
+                }
+                const childTop = Number(child.y) || 0;
+                const parentH = Number(parent.height) || 60;
+                const minChildY = (Number(parent.y) || 0) + parentH + gap;
+                if (childTop < minChildY - 1) {
+                    shiftSpecChildDown(
+                        conn.source,
+                        minChildY - childTop,
+                        new Set(),
+                    );
+                    moved = true;
+                }
+            }
+
             if (!moved) {
                 break;
             }
         }
     }
 
-    function shiftDescendantsOf(parentId, dx, dy, visible) {
+    function shiftDescendantsOf(parentId, dx, dy, visible, byId) {
         if (!dx && !dy) {
             return;
         }
@@ -311,15 +373,8 @@
             }
             d.x = (Number(d.x) || 0) + dx;
             d.y = (Number(d.y) || 0) + dy;
-            if (d.parent) {
-                if (typeof d.relativeX === 'number') {
-                    d.relativeX += dx;
-                }
-                if (typeof d.relativeY === 'number') {
-                    d.relativeY += dy;
-                }
-            }
-            shiftDescendantsOf(d.id, dx, dy, visible);
+            syncRelativeFromAbsolute(d, byId);
+            shiftDescendantsOf(d.id, dx, dy, visible, byId);
         }
     }
 
@@ -408,11 +463,14 @@
                 const oldY = Number(c.y) || 0;
                 c.x = cx;
                 c.y = belowY;
-                if (!parent.parent) {
-                    c.relativeX = c.x;
-                    c.relativeY = c.y;
-                }
-                shiftDescendantsOf(c.id, c.x - oldX, c.y - oldY, visible);
+                syncRelativeFromAbsolute(c, byId);
+                shiftDescendantsOf(
+                    c.id,
+                    c.x - oldX,
+                    c.y - oldY,
+                    visible,
+                    byId,
+                );
                 specRowPlaced.add(c.id);
                 cx += cw + siblingGap;
             }
@@ -427,17 +485,13 @@
                     const dx = minBx - bx;
                     const oldBx = bx;
                     b.x = minBx;
-                    if (!b.parent) {
-                        b.relativeX = b.x;
-                    }
-                    shiftDescendantsOf(b.id, b.x - oldBx, 0, visible);
+                    syncRelativeFromAbsolute(b, byId);
+                    shiftDescendantsOf(b.id, b.x - oldBx, 0, visible, byId);
                     for (let j = i + 2; j < children.length; j++) {
                         const prevX = Number(children[j].x) || 0;
                         children[j].x = prevX + dx;
-                        if (!children[j].parent) {
-                            children[j].relativeX = children[j].x;
-                        }
-                        shiftDescendantsOf(children[j].id, dx, 0, visible);
+                        syncRelativeFromAbsolute(children[j], byId);
+                        shiftDescendantsOf(children[j].id, dx, 0, visible, byId);
                     }
                 }
             }
@@ -504,6 +558,96 @@
 
     function getContainmentPolicy() {
         return NS.Editor?.model?.containmentPolicy || null;
+    }
+
+    /** 직접 containment 자식 수 — elements·edges·borderNodes(포트) 반영 */
+    function countDirectContainmentChildren(parentId, elements, connections) {
+        const policy = getContainmentPolicy();
+        let n = 0;
+        if (policy?.countDirectContainmentTargets) {
+            n = policy.countDirectContainmentTargets(
+                parentId,
+                elements,
+                connections,
+            );
+        } else {
+            const pid = String(parentId);
+            for (const el of elements) {
+                if (
+                    el?.id != null &&
+                    !el.hidden &&
+                    el.parent != null &&
+                    String(el.parent) === pid
+                ) {
+                    n++;
+                }
+            }
+            if (Array.isArray(connections)) {
+                for (const c of connections) {
+                    const k = String(c?.kind || c?.type || '').toLowerCase();
+                    if (!k.includes('contain')) {
+                        continue;
+                    }
+                    if (String(c.source) === String(parentId)) {
+                        n++;
+                    }
+                }
+            }
+        }
+        const parentEl = elements.find(
+            (e) => e?.id != null && String(e.id) === String(parentId),
+        );
+        const bn = parentEl?.borderNodes;
+        if (Array.isArray(bn) && bn.length > 0) {
+            n = Math.max(n, 1 + bn.length);
+        }
+        return n;
+    }
+
+    /** BDD 컨테이너 — 라벨·compartment(포트) 아래에 자식 블록 배치 */
+    function getBddContainerPads(parent, elkCP) {
+        const DS = NS.Editor?.config?.displaySettings;
+        const CP = elkCP || DS?.elk?.containerPadding || {};
+        const labelH =
+            Number(parent._labelHeight) ||
+            Number(DS?.label?.minHeight) ||
+            35;
+        let topPad = Number(parent._precomputedPaddingTop) || 0;
+        if (!(topPad > 0)) {
+            topPad = Math.max(Number(CP.top) || 48, labelH + 6);
+            const metrics = NS.Editor?.metrics;
+            const comps = parent.compartments;
+            if (
+                metrics?.calculateTotalCompartmentsHeight &&
+                Array.isArray(comps) &&
+                comps.length > 0
+            ) {
+                const compH = metrics.calculateTotalCompartmentsHeight(
+                    comps,
+                    false,
+                    Number(parent.width) || 120,
+                );
+                topPad = Math.max(topPad, labelH + compH + 4);
+            }
+        }
+        return {
+            top: topPad,
+            left: Number(CP.left) || 32,
+            right: Number(CP.right) || 32,
+            bottom: Number(CP.bottom) || 28,
+        };
+    }
+
+    /**
+     * 스파인·tight 단일자식 — 구조 블록 1개이면서 직접 자식도 1개일 때만
+     * (test-5 Bus: Channel + ClockPort + DataBusPort → 스파인 금지)
+     */
+    function isSingleStructuralContainmentParent(parentId, elements, connections) {
+        const kids = getStructuralChildIds(parentId, elements, connections);
+        if (kids.length !== 1) {
+            return false;
+        }
+        return countDirectContainmentChildren(parentId, elements, connections) <= 1;
     }
 
     function getStructuralChildIds(parentId, elements, connections) {
@@ -576,8 +720,9 @@
             if (!el?.id || el.hidden) {
                 continue;
             }
-            const kids = getStructuralChildIds(el.id, elements, connections);
-            if (kids.length !== 1) {
+            if (
+                !isSingleStructuralContainmentParent(el.id, elements, connections)
+            ) {
                 continue;
             }
             el._tightSingleChildContainer = true;
@@ -590,14 +735,25 @@
         }
 
         for (const start of elements) {
-            const kids = getStructuralChildIds(start.id, elements, connections);
-            if (kids.length !== 1) {
+            if (
+                !isSingleStructuralContainmentParent(start.id, elements, connections)
+            ) {
                 continue;
             }
+            const kids = getStructuralChildIds(start.id, elements, connections);
             const chain = [start];
             let cur = byId.get(kids[0]);
             while (cur) {
                 chain.push(cur);
+                if (
+                    !isSingleStructuralContainmentParent(
+                        cur.id,
+                        elements,
+                        connections,
+                    )
+                ) {
+                    break;
+                }
                 const nextKids = getStructuralChildIds(cur.id, elements, connections);
                 if (nextKids.length !== 1) {
                     break;
@@ -637,26 +793,42 @@
             if (claimed.has(el.id)) {
                 continue;
             }
-            const kids = getStructuralChildIds(el.id, elements, connections);
-            if (kids.length !== 1) {
+            if (
+                !isSingleStructuralContainmentParent(el.id, elements, connections)
+            ) {
                 continue;
             }
             if (el.parent) {
                 const par = byId.get(el.parent);
                 if (par) {
-                    const parKids = getStructuralChildIds(par.id, elements, connections);
-                    if (parKids.length === 1) {
+                    if (
+                        isSingleStructuralContainmentParent(
+                            par.id,
+                            elements,
+                            connections,
+                        )
+                    ) {
                         continue;
                     }
                 }
             }
 
+            const kids = getStructuralChildIds(el.id, elements, connections);
             const chain = [el];
             claimed.add(el.id);
             let cur = byId.get(kids[0]);
             while (cur && !cur.hidden) {
                 chain.push(cur);
                 claimed.add(cur.id);
+                if (
+                    !isSingleStructuralContainmentParent(
+                        cur.id,
+                        elements,
+                        connections,
+                    )
+                ) {
+                    break;
+                }
                 const nextKids = getStructuralChildIds(cur.id, elements, connections);
                 if (nextKids.length !== 1) {
                     break;
@@ -832,10 +1004,16 @@
             if (inSpine.has(parent.id)) {
                 continue;
             }
-            const kids = getStructuralChildIds(parent.id, elements, connections);
-            if (kids.length !== 1) {
+            if (
+                !isSingleStructuralContainmentParent(
+                    parent.id,
+                    elements,
+                    connections,
+                )
+            ) {
                 continue;
             }
+            const kids = getStructuralChildIds(parent.id, elements, connections);
             const child = byId.get(kids[0]);
             layoutSingleChildPair(
                 parent,
@@ -863,6 +1041,99 @@
     }
 
     /**
+     * containment 부모 — 자식 bbox+패딩으로 width/height 확정 (test-5 Bus⊃Channel)
+     * nodeTransformer 후 포트는 borderNodes만 남고 Channel만 자식 element인 경우 포함
+     */
+    function ensureContainmentParentsEncloseChildren(diagramData) {
+        const elements = Array.isArray(diagramData?.elements)
+            ? diagramData.elements
+            : [];
+        const visible = elements.filter((e) => e && !e.hidden && e.id);
+        if (visible.length < 2) {
+            return;
+        }
+
+        const byId = indexElements(elements);
+        const CP = NS.Editor?.config?.displaySettings?.elk?.containerPadding || {};
+        const rowGap =
+            Number(NS.Editor?.config?.displaySettings?.bdd?.containmentRowGap) ||
+            Number(NS.Editor?.config?.displaySettings?.elk?.containerChildSpacing) ||
+            28;
+
+        function shiftSubtreeRigid(el, dx, dy) {
+            el.x = (Number(el.x) || 0) + dx;
+            el.y = (Number(el.y) || 0) + dy;
+            syncRelativeFromAbsolute(el, byId);
+            for (const c of visible) {
+                if (String(c.parent) === String(el.id)) {
+                    shiftSubtreeRigid(c, dx, dy);
+                }
+            }
+        }
+
+        for (const parent of visible) {
+            if (!shouldPackContainmentChildrenHorizontally(parent)) {
+                continue;
+            }
+            const kids = visible.filter(
+                (e) => String(e.parent) === String(parent.id),
+            );
+            if (kids.length === 0) {
+                continue;
+            }
+
+            const pads = getBddContainerPads(parent, CP);
+            const px = Number(parent.x) || 0;
+            const py = Number(parent.y) || 0;
+            const innerTop = py + pads.top;
+
+            kids.sort((a, b) =>
+                String(a.name || a.id).localeCompare(String(b.name || b.id)),
+            );
+
+            let totalW = 0;
+            for (const k of kids) {
+                totalW += Number(k.width) || 120;
+            }
+            totalW += rowGap * Math.max(0, kids.length - 1);
+
+            const titleW = estimateTitleMinWidth(parent, 72);
+            let needW = totalW + pads.left + pads.right;
+            needW = Math.max(needW, titleW + pads.left + pads.right);
+
+            let cx = px + pads.left;
+            if (kids.length === 1) {
+                const kw = Number(kids[0].width) || 120;
+                cx = px + Math.max(pads.left, (needW - pads.left - pads.right - kw) / 2);
+            } else {
+                cx = px + Math.max(pads.left, (needW - totalW) / 2);
+            }
+
+            let maxBottom = innerTop;
+            for (const k of kids) {
+                const kw = Number(k.width) || 120;
+                const kh = Number(k.height) || 60;
+                const oldX = Number(k.x) || 0;
+                const oldY = Number(k.y) || 0;
+                k.x = cx;
+                k.y = innerTop;
+                syncRelativeFromAbsolute(k, byId);
+                shiftDescendantsOf(k.id, k.x - oldX, k.y - oldY, visible, byId);
+                maxBottom = Math.max(maxBottom, (Number(k.y) || 0) + kh);
+                cx += kw + rowGap;
+            }
+
+            parent.width = needW;
+            parent.height = maxBottom - py + pads.bottom;
+            syncRelativeFromAbsolute(parent, byId);
+            if (!parent.parent) {
+                parent.relativeX = parent.x;
+                parent.relativeY = parent.y;
+            }
+        }
+    }
+
+    /**
      * ELK layered는 컨테이너 안 association 등으로 자식이 세로 레이어로 쌓이기 쉬움.
      * BDD식 블록(액션 플로우 제외)의 직접 자식만 한 행으로 가로 배치.
      */
@@ -881,26 +1152,13 @@
             Number(DS?.elk?.containerChildSpacing) ||
             28;
 
-        function shiftDescendantsAbsOnly(el, dx, dy) {
-            el.x = (Number(el.x) || 0) + dx;
-            el.y = (Number(el.y) || 0) + dy;
-            for (const c of visible) {
-                if (String(c.parent) === String(el.id)) {
-                    shiftDescendantsAbsOnly(c, dx, dy);
-                }
-            }
-        }
-
         function shiftSubtreeRigid(el, dx, dy) {
             el.x = (Number(el.x) || 0) + dx;
             el.y = (Number(el.y) || 0) + dy;
-            if (el.parent) {
-                el.relativeX = (Number(el.relativeX) || 0) + dx;
-                el.relativeY = (Number(el.relativeY) || 0) + dy;
-            }
+            syncRelativeFromAbsolute(el, byId);
             for (const c of visible) {
                 if (String(c.parent) === String(el.id)) {
-                    shiftDescendantsAbsOnly(c, dx, dy);
+                    shiftSubtreeRigid(c, dx, dy);
                 }
             }
         }
@@ -914,9 +1172,13 @@
         }
 
         for (const [parentId, kids] of childrenByParent) {
-            if (kids.length < 2) continue;
+            if (kids.length === 0) continue;
             const parent = byId.get(parentId);
             if (!parent || !shouldPackContainmentChildrenHorizontally(parent)) continue;
+
+            const pads = getBddContainerPads(parent, CP);
+            const innerTop = (Number(parent.y) || 0) + pads.top;
+            const px = Number(parent.x) || 0;
 
             const sorted = kids.slice().sort((a, b) => {
                 const ay = Number(a.y) || 0;
@@ -925,14 +1187,6 @@
                 return (Number(a.x) || 0) - (Number(b.x) || 0);
             });
 
-            const topPad = Math.max(
-                Number(parent._precomputedPaddingTop) || 0,
-                Number(CP.top) || 60,
-            );
-            const innerTop = (Number(parent.y) || 0) + topPad;
-            const leftPad = Number(CP.left) || 40;
-            const rightPad = Number(CP.right) || 40;
-
             let totalW = 0;
             for (const k of sorted) {
                 totalW += Number(k.width) || 120;
@@ -940,14 +1194,13 @@
             totalW += gap * Math.max(0, sorted.length - 1);
 
             const pw = Number(parent.width) || 120;
-            const needW = totalW + leftPad + rightPad;
-            if (needW > pw) {
-                parent.width = needW;
-            }
+            const titleW = estimateTitleMinWidth(parent, 72);
+            let needW = totalW + pads.left + pads.right;
+            needW = Math.max(needW, titleW + pads.left + pads.right);
+            parent.width = needW;
 
-            const px = Number(parent.x) || 0;
             const pw2 = Number(parent.width) || 120;
-            let cx = px + (pw2 - totalW) / 2;
+            let cx = px + Math.max(pads.left, (pw2 - totalW) / 2);
             for (const k of sorted) {
                 const kw = Number(k.width) || 120;
                 const dx = cx - (Number(k.x) || 0);
@@ -960,12 +1213,7 @@
                 const h = Number(k.height) || 60;
                 return Math.max(m, (Number(k.y) || 0) + h);
             }, innerTop);
-            const bottomPad = Number(CP.bottom) || 40;
-            const needH = maxBottom - (Number(parent.y) || 0) + bottomPad;
-            const ph = Number(parent.height) || 60;
-            if (needH > ph) {
-                parent.height = needH;
-            }
+            parent.height = maxBottom - (Number(parent.y) || 0) + pads.bottom;
         }
     }
 
@@ -996,15 +1244,16 @@
             );
         }
 
+        const byIdOverlap = indexElements(elements);
+
         function shiftSubtree(el, dx, dy) {
             if (dx) {
                 el.x = (Number(el.x) || 0) + dx;
-                if (typeof el.relativeX === 'number') el.relativeX += dx;
             }
             if (dy) {
                 el.y = (Number(el.y) || 0) + dy;
-                if (typeof el.relativeY === 'number') el.relativeY += dy;
             }
+            syncRelativeFromAbsolute(el, byIdOverlap);
             for (const child of visible) {
                 if (String(child.parent) === String(el.id)) {
                     shiftSubtree(child, dx, dy);
@@ -1077,15 +1326,12 @@
         const dy = minY < m ? m - minY : 0;
         if (dx === 0 && dy === 0) return;
 
+        const byIdFit = indexElements(elements);
+
         function shiftSubtree(el) {
             el.x = (Number(el.x) || 0) + dx;
             el.y = (Number(el.y) || 0) + dy;
-            if (!el.parent) {
-                if (typeof el.relativeX === 'number') el.relativeX += dx;
-                else el.relativeX = el.x;
-                if (typeof el.relativeY === 'number') el.relativeY += dy;
-                else el.relativeY = el.y;
-            }
+            syncRelativeFromAbsolute(el, byIdFit);
             for (const child of visible) {
                 if (String(child.parent) === String(el.id)) shiftSubtree(child);
             }
@@ -1103,11 +1349,12 @@
         if (!diagramData) return;
         const cfg = getBddCfg(elkCfg);
         applySpecVerticalBands(diagramData, cfg);
-        packContainmentChildrenHorizontally(diagramData);
         markCompactContainmentSpines(diagramData);
         layoutTightSingleChildContainers(diagramData);
+        packContainmentChildrenHorizontally(diagramData);
         applySpecChildrenSymmetric(diagramData, cfg);
         enforceSpecParentAboveChildren(diagramData, cfg);
+        ensureContainmentParentsEncloseChildren(diagramData);
         fitDiagramToMargins(diagramData, cfg.margin);
         resolveSiblingOverlaps(diagramData, cfg.siblingPad);
         clearSpecWaypoints(diagramData);
@@ -1132,6 +1379,7 @@
         layoutContainmentSpineChains: layoutTightSingleChildContainers,
         layoutCompactContainmentSpines: layoutTightSingleChildContainers,
         packContainmentChildrenHorizontally,
+        ensureContainmentParentsEncloseChildren,
         resolveSiblingOverlaps,
         fitDiagramToMargins,
         clearSpecWaypoints,

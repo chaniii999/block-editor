@@ -688,6 +688,80 @@ Codec — spec 없음, association만 (루트)
 | 깨지면 | test-1 전체 배치 붕괴 (이전 롤백과 동일) |
 | 확인 | test-4 + test-1 둘 다 |
 
+### fix(bddLayout) — test-3·6·7·8·9 빈 화면
+
+| 원인 | `enforceSpecParentAboveChildren`에서 `shiftDescendantsOf(..., visible, ...)` 호출 시 **`visible` 미정의** → `ReferenceError`로 ELK·렌더 중단 |
+| 수정 | `const visible = elements.filter(...)` 추가 |
+| 부가 | `elkLayout.js` `resolveSiblingOverlaps`·`fitDiagramToMargins` — x,y·relative 이중 가산 제거, 겹침 bbox는 **절대 x,y** 사용 |
+
+**확인:** Reload → test-3,6,7,8,9 · `node scripts/check-bdd-postlayout.mjs`
+
+### fix(bddLayout) — test-5 Bus·Channel 겹침
+
+**관계 (`tests/test-5.json`):**
+
+```text
+Bus ──containment──► Channel, ClockPort, DataBusPort (직접 자식 3)
+Bus ◄──specialization── I2CBus, SPIBus, UARTBus (루트, Bus 아래 배치)
+```
+
+| 원인 | 내용 |
+|------|------|
+| **스파인 오판** | `getStructuralChildIds`가 포트 제외 → Bus의 구조 자식이 Channel 1개뿐 → `Bus→Channel` 스파인·tight 적용 |
+| **순서** | `pack`(가로 3열) 후 `layoutTight`가 Channel 위치를 스파인으로 **덮어씀** → Bus 헤더와 Channel 겹쳐 보임 |
+| (부가) | `shiftSpecAncestorsUp` 시 containment 자식 미동반 이동 |
+
+| 수정 | 내용 |
+|------|------|
+| `isSingleStructuralContainmentParent` | 직접 containment 자식(포트 포함) **2개 이상이면** 스파인·tight 금지 |
+| `applyPostLayout` 순서 | spine/tight → **그 다음** `packContainmentChildrenHorizontally` |
+| `shiftSpecAncestorsUp` | `shiftDescendantsOf`로 containment 동반 이동 |
+| `getBddContainerPads` | 라벨 + **compartment(포트)** 높이 반영한 `innerTop` |
+| `ensureContainmentParentsEncloseChildren` | 후처리 끝에 Bus 등 **자식 bbox로 width/height 재계산** (Channel만 element인 경우) |
+| `MxCellFactory` | 자식 1개 BDD 컨테이너도 가로 배치·부모 리사이즈, `contentTop`에 compartment 반영 |
+
+### fix(bddLayout) — test-2/5 빈 화면·test-9 spec 자식이 부모 위
+
+| 원인 | 내용 |
+|------|------|
+| `shiftDescendantsOf`·`pack`·`resolveSiblingOverlaps` | 절대 `x,y`와 `relativeX/Y`에 **같은 delta 이중 가산** → mx 좌표 폭주·뷰포트 밖 |
+| `applySpecVerticalBands` | containment 부모는 Y 스킵인데 **밴드 높이만 소모** → 자식이 부모 위 레이어에 배치 (test-9 Storage·Battery 등) |
+
+| 수정 | 내용 |
+|------|------|
+| `syncRelativeFromAbsolute` | 이동 후 부모 기준으로 relative 재계산 |
+| spec 밴드 | 레이어 실제 bottom 기준으로 `bandY` 진행 |
+| `enforceSpecParentAboveChildren` | 부모 위로 올리기 + **자식 아래로 내리기** |
+
+**확인:** Reload → test-2, test-5 표시 / test-9 Flywheel·Battery·Renewable이 각 부모 아래
+
+### T-edge — 엣지·노드 관통 회피 (README 직교 품질)
+
+**과거 실패 원인 (요약)**
+
+| 원인 | 증상 |
+|------|------|
+| `buildOrthogonalPath`가 src/tgt **채널 1개만** 사용 | 중간 노드 bbox 무시 → 관통 |
+| `isPathReasonable`이 **넓은 margin**만 검사 | ELK waypoint가 장애물 관통해도 통과 |
+| `renderUtils.avoidObstaclesPolyline` | **SVG 전용**, mx `geometry.points` 미연동 |
+| 세그먼트당 첫 장애물만 우회·재검증 없음 | 새 세그먼트가 다른 노드 관통 → **더 꺾임** |
+| waypoint 무조건 추가 | README 「경로 단순성」 위반 |
+
+**태스크 순서**
+
+| ID | 내용 | 상태 |
+|----|------|------|
+| T-edge-0 | test-1/2/5 Reload 후 관통 육안·(후속) 교차 카운트 스크립트 | 수동 |
+| T-edge-1 | `edgeObstacleUtil.js` — bbox 수집·H/V 교차·`maybeRefinePath` | **완료** |
+| T-edge-2 | `MxEdgeBuilder.routeEdge` — ELK·`buildOrthogonalPath` 후 보수적 refine | **완료** |
+| T-edge-3 | 채널 Y/X 후보 여러 개 → 교차 최소 선택 | 보류 |
+| T-edge-4 | `specEdgeRouter` nested·컨테이너 탈출 경로 | 보류 |
+| T-edge-5 | `reroute` 후 2차 검증·앵커 분산과 충돌 여부 | 보류 |
+
+**채택 규칙 (T-edge-2)** — 교차 수가 **감소**하고, 꺾임이 `원본 + maxExtraBends` 이하일 때만 우회 경로 적용. 아니면 **원 경로 유지** (악화 방지).
+
+**설정:** `displaySettings.edgeObstacle` (`obstacleBuffer` 12 등)
+
 ### T7+ (보류) — README 엣지 쪽
 
 - `elkLayout` bdd 폴백 중복 제거  
