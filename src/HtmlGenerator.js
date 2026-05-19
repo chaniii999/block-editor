@@ -244,6 +244,7 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('core.js')}"></script>
     <!-- ELK -->
     <script nonce="${nonce}" src="${elk.toString()}?${version}"></script>
+    <script nonce="${nonce}" src="${es('model/containmentPolicy.js')}"></script>
     <script nonce="${nonce}" src="${es('layout/bddLayout.js')}"></script>
     <script nonce="${nonce}" src="${es('layout/elkLayout.js')}"></script>
     <script nonce="${nonce}" src="${es('layout/alignRanks.js')}"></script>

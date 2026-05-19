@@ -289,9 +289,44 @@
         let localY;
 
         if (parent !== graph.getDefaultParent() && parentNode) {
-            // 자식 노드: ELK relativeX/Y(부모 기준 상대좌표) 사용
-            localX = typeof node.relativeX === 'number' ? node.relativeX : (x || 10);
-            localY = typeof node.relativeY === 'number' ? node.relativeY : (y || 35);
+            const pw = Number(parentNode.width) || Number(finalWidth) || 120;
+            const cw = Number(finalWidth) || 120;
+            const contentTop =
+                Number(node._precomputedPaddingTop) ||
+                Number(parentNode._precomputedPaddingTop) ||
+                Number(ns.Editor?.config?.displaySettings?.bdd?.compactSpineLabelTop) ||
+                32;
+
+            if (typeof node.relativeX === 'number' && typeof node.relativeY === 'number') {
+                localX = node.relativeX;
+                localY = node.relativeY;
+            } else if (
+                parentNode._tightSingleChildContainer ||
+                parentNode._compactContainmentSpine ||
+                parentNode._containmentSpineChain
+            ) {
+                localX = Math.max(0, (pw - cw) / 2);
+                localY = typeof node.relativeY === 'number' ? node.relativeY : contentTop;
+            } else {
+                const parentAbsX = Number(parentNode.x) || 0;
+                const parentAbsY = Number(parentNode.y) || 0;
+                if (typeof node.relativeX === 'number') {
+                    localX = node.relativeX;
+                } else if (Number.isFinite(Number(node.x))) {
+                    localX = Math.max(0, Number(node.x) - parentAbsX);
+                } else {
+                    localX = Math.max(0, (pw - cw) / 2);
+                }
+                if (typeof node.relativeY === 'number') {
+                    localY = node.relativeY;
+                } else if (Number.isFinite(Number(node.y))) {
+                    localY = Math.max(contentTop, Number(node.y) - parentAbsY);
+                } else {
+                    localY = contentTop;
+                }
+            }
+            node.relativeX = localX;
+            node.relativeY = localY;
         } else {
             // 루트 노드: 절대 좌표 사용
             localX = typeof node.relativeX === 'number' ? node.relativeX : x;

@@ -126,6 +126,16 @@
             siblingOverlapGap: 32,
             /** 컨테이너 안 직접 자식 가로 한 줄 간격 (mx resizeParents·bdd 팩 공통) */
             containmentRowGap: 28,
+            /** 단일 자식 포함 체인(7단 등) — 얇은 스파인 프레임 */
+            compactSpineMinChain: 3,
+            compactSpineLabelTop: 32,
+            compactSpineGap: 4,
+            compactSpinePad: { top: 8, left: 14, right: 14, bottom: 10 },
+            /** 직접 BDD 자식 1개 — 가로 여백·ELK padding (투박함 방지) */
+            singleChildContainmentPad: { top: 8, left: 6, right: 6, bottom: 8 },
+            singleChildLabelMinWidth: 72,
+            /** 부모→자식→… 단일 체인 스파인 레이아웃 최소 깊이 (test-4 7단 등) */
+            containmentSpineMinChain: 2,
         },
 
         // ─── ELK 레이아웃 설정 (elkLayout.js) ────────────────────

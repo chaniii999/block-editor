@@ -82,6 +82,12 @@
 
     function getContentAreaTop(parentCell, parentNode) {
         const node = parentNode || parentCell?._nodeData;
+        if (node?._compactContainmentSpine || node?._tightSingleChildContainer) {
+            const spineTop =
+                Number(ns.Editor?.config?.displaySettings?.bdd?.compactSpineLabelTop) ||
+                32;
+            return spineTop;
+        }
         const precomputed = Number(node?._precomputedPaddingTop);
         if (precomputed > 0) return precomputed;
         const labelH =
@@ -109,6 +115,8 @@
     }
 
     function resizeParentsToFitChildren(graph, defaultParent, cellMap, nodes) {
+        const DS = ns.Editor?.config?.displaySettings;
+        const spinePad = DS?.bdd?.compactSpinePad || {};
         const PADDING = 20;
         const CHILD_GAP = 10;
         const graphModel = graph.getModel();
@@ -134,6 +142,53 @@
         for (const parentId of parentIds) {
             const parentCell = cellMap[parentId];
             if (!parentCell) continue;
+            const parentNodeEarly = parentCell._nodeData;
+            const childCountEarly = (childrenOf.get(parentId) || []).length;
+            if (
+                childCountEarly === 1 &&
+                isBddStyleLikeContainer(parentNodeEarly) &&
+                (parentNodeEarly?._tightSingleChildContainer ||
+                    parentNodeEarly?._compactContainmentSpine ||
+                    parentNodeEarly?._containmentSpineChain)
+            ) {
+                const childId = childrenOf.get(parentId)[0];
+                const childCell = cellMap[childId];
+                const childNode = childCell?._nodeData;
+                if (childCell && childNode) {
+                    const pGeo = graphModel.getGeometry(parentCell);
+                    const cGeo = graphModel.getGeometry(childCell);
+                    if (pGeo && cGeo) {
+                        const contentTop = getContentAreaTop(parentCell, parentNodeEarly);
+                        const cw = Number(childNode.width) || Number(cGeo.width) || 120;
+                        const ch = Number(childNode.height) || Number(cGeo.height) || 60;
+                        const side =
+                            Number(spinePad.left) ||
+                            Number(DS?.bdd?.singleChildContainmentPad?.left) ||
+                            6;
+                        const bottom =
+                            Number(spinePad.bottom) ||
+                            Number(DS?.bdd?.singleChildContainmentPad?.bottom) ||
+                            8;
+                        const name = String(parentNodeEarly.name || parentNodeEarly.id || '');
+                        const titleW = Math.max(72, name.length * 7 + 20);
+                        const parentW = Math.max(cw + side * 2, titleW);
+                        const relX = Math.max(0, (parentW - cw) / 2);
+                        const newChild = cGeo.clone();
+                        newChild.x = relX;
+                        newChild.y = contentTop;
+                        graphModel.setGeometry(childCell, newChild);
+                        childNode.relativeX = relX;
+                        childNode.relativeY = contentTop;
+                        const newParent = pGeo.clone();
+                        newParent.width = parentW;
+                        newParent.height = contentTop + ch + bottom;
+                        graphModel.setGeometry(parentCell, newParent);
+                        parentNodeEarly.width = newParent.width;
+                        parentNodeEarly.height = newParent.height;
+                    }
+                }
+                continue;
+            }
             const children = childrenOf.get(parentId) || [];
             if (children.length === 0) continue;
 
@@ -151,7 +206,13 @@
 
             const parentNode = parentCell._nodeData;
             const contentTop = getContentAreaTop(parentCell, parentNode);
-            const DS = ns.Editor?.config?.displaySettings;
+            const compactSpine = !!parentNode?._compactContainmentSpine;
+            const sidePad = compactSpine
+                ? Number(spinePad.left) || 14
+                : PADDING;
+            const bottomPad = compactSpine
+                ? Number(spinePad.bottom) || 10
+                : PADDING;
             // nodeNodeSpacing(루트·레이어)은 수백 단위일 수 있음 — 컨테이너 안 가로 줄에는 쓰지 않음
             const siblingGap =
                 Number(DS?.bdd?.containmentRowGap) ||
@@ -221,12 +282,13 @@
                 // 중앙 오프셋 계산 (compartment 아래 영역만 사용)
                 const centerX = Math.max(10, (availW - childrenWidth) / 2);
                 // 가로 한 줄로 맞춘 컨테이너는 세로 가운데 정렬하지 않음(상·하 빈 공백 방지)
-                const centerY = packedContainmentRow
-                    ? contentTop + 5
-                    : Math.max(
-                          contentTop + 5,
-                          contentTop + Math.max(0, (availH - childrenHeight) / 2),
-                      );
+                const centerY =
+                    packedContainmentRow || (compactSpine && childGeos.length === 1)
+                        ? contentTop + 5
+                        : Math.max(
+                              contentTop + 5,
+                              contentTop + Math.max(0, (availH - childrenHeight) / 2),
+                          );
                 const shiftX = minX - centerX;
                 const shiftY = minY - centerY;
                 if (Math.abs(shiftX) > 2 || Math.abs(shiftY) > 2) {
@@ -267,15 +329,27 @@
             if (maxRight2 > 0 || maxBottom2 > 0) {
                 const pGeo = graphModel.getGeometry(parentCell);
                 if (pGeo) {
-                    const fitW = maxRight2 + PADDING;
+                    const fitW = maxRight2 + (compactSpine ? sidePad : PADDING);
                     const fitH = Math.max(
-                        maxBottom2 + PADDING + footerReserve + footerExtra,
-                        contentTop + childrenHeight + PADDING + footerReserve + footerExtra,
+                        maxBottom2 +
+                            (compactSpine ? bottomPad : PADDING) +
+                            footerReserve +
+                            footerExtra,
+                        contentTop +
+                            childrenHeight +
+                            (compactSpine ? bottomPad : PADDING) +
+                            footerReserve +
+                            footerExtra,
                     );
                     // 부모 크기를 자식 fit 크기로 조정 (확장뿐 아니라 축소도)
                     const newGeo = pGeo.clone();
-                    newGeo.width = Math.max(fitW, 100); // 최소 100
-                    newGeo.height = Math.max(fitH, 60);
+                    if (compactSpine && childGeos.length === 1) {
+                        newGeo.width = Math.max(fitW, 80);
+                        newGeo.height = Math.max(fitH, 48);
+                    } else {
+                        newGeo.width = Math.max(fitW, 100);
+                        newGeo.height = Math.max(fitH, 60);
+                    }
                     graphModel.setGeometry(parentCell, newGeo);
                 }
             }

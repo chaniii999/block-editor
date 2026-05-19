@@ -882,6 +882,10 @@
     app.setModel(normalized);
     app.deriveHierarchy();
 
+    if (ns.Editor?.layout?.bdd?.markCompactContainmentSpines) {
+      ns.Editor.layout.bdd.markCompactContainmentSpines(normalized);
+    }
+
     const hasGuiData = guiData?.nodes && Object.keys(guiData.nodes).length > 0;
 
     const tLayoutStart = performance.now();
@@ -1038,8 +1042,14 @@
                 const newGeo = geo.clone();
                 newGeo.x = Number(saved.x ?? geo.x);
                 newGeo.y = Number(saved.y ?? geo.y);
-                newGeo.width = Number(saved.width ?? geo.width);
-                newGeo.height = Number(saved.height ?? geo.height);
+                // 크기는 ELK·bdd 후처리가 결정 — guiData는 위치만 복원
+                if (
+                  !nodeData._compactContainmentSpine &&
+                  !nodeData._tightSingleChildContainer
+                ) {
+                  newGeo.width = Number(saved.width ?? geo.width);
+                  newGeo.height = Number(saved.height ?? geo.height);
+                }
                 model.setGeometry(cell, newGeo);
               }
             } else {

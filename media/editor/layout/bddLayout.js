@@ -215,6 +215,366 @@
         }
     }
 
+    function getCompactSpineCfg() {
+        const bdd = NS.Editor?.config?.displaySettings?.bdd || {};
+        const pad = bdd.compactSpinePad || {};
+        const sc = bdd.singleChildContainmentPad || {};
+        return {
+            minChain: Number(bdd.compactSpineMinChain) || 3,
+            labelTop: Number(bdd.compactSpineLabelTop) || 32,
+            gap: Number(bdd.compactSpineGap) || 4,
+            top: Number(pad.top) || 8,
+            left: Number(pad.left) || 14,
+            right: Number(pad.right) || 14,
+            bottom: Number(pad.bottom) || 10,
+            singleTop: Number(sc.top) || 8,
+            singleLeft: Number(sc.left) || 6,
+            singleRight: Number(sc.right) || 6,
+            singleBottom: Number(sc.bottom) || 8,
+            labelMinW: Number(bdd.singleChildLabelMinWidth) || 72,
+        };
+    }
+
+    function estimateTitleMinWidth(node, minW) {
+        const name = String(node?.name || node?.id || '');
+        const charW = 7;
+        return Math.max(minW, name.length * charW + 20);
+    }
+
+    function isTightSingleChildContainer(node) {
+        return !!(node?._tightSingleChildContainer || node?._compactContainmentSpine);
+    }
+
+    function getContainmentPolicy() {
+        return NS.Editor?.model?.containmentPolicy || null;
+    }
+
+    function getStructuralChildIds(parentId, elements, connections) {
+        const policy = getContainmentPolicy();
+        if (policy?.getStructuralContainmentChildIds) {
+            return policy.getStructuralContainmentChildIds(parentId, elements, connections);
+        }
+        const pid = String(parentId);
+        const out = [];
+        for (const el of elements) {
+            if (el?.parent == null || String(el.parent) !== pid || el.id == null) {
+                continue;
+            }
+            const kind = String(el.kind || el.type || '').toLowerCase();
+            if (
+                kind.includes('portdefinition') ||
+                kind.includes('portusage') ||
+                kind.includes('attributedefinition') ||
+                kind.includes('attributeusage')
+            ) {
+                continue;
+            }
+            if (
+                kind.includes('partdefinition') ||
+                kind.includes('partusage') ||
+                kind.includes('package') ||
+                kind.includes('librarypackage')
+            ) {
+                out.push(String(el.id));
+            }
+        }
+        if (Array.isArray(connections)) {
+            for (const edge of connections) {
+                const k = String(edge?.kind || edge?.type || '').toLowerCase();
+                if (!k.includes('contain') || String(edge.source) !== pid || edge.target == null) {
+                    continue;
+                }
+                const tid = String(edge.target);
+                if (out.includes(tid)) {
+                    continue;
+                }
+                const el = elements.find((e) => e?.id != null && String(e.id) === tid);
+                const kind = String(el?.kind || el?.type || '').toLowerCase();
+                if (
+                    el &&
+                    (kind.includes('partdefinition') ||
+                        kind.includes('partusage') ||
+                        kind.includes('package') ||
+                        kind.includes('librarypackage'))
+                ) {
+                    out.push(tid);
+                }
+            }
+        }
+        return out;
+    }
+
+    function markCompactContainmentSpines(diagramData) {
+        const elements = Array.isArray(diagramData?.elements)
+            ? diagramData.elements
+            : [];
+        const connections = Array.isArray(diagramData?.connections)
+            ? diagramData.connections
+            : [];
+        const policy = getContainmentPolicy();
+        const cfg = getCompactSpineCfg();
+        const byId = indexElements(elements);
+
+        for (const el of elements) {
+            if (!el?.id || el.hidden) {
+                continue;
+            }
+            const kids = getStructuralChildIds(el.id, elements, connections);
+            if (kids.length !== 1) {
+                continue;
+            }
+            el._tightSingleChildContainer = true;
+            el._precomputedPaddingTop = cfg.labelTop;
+        }
+
+        if (policy?.markCompactContainmentSpines) {
+            policy.markCompactContainmentSpines(elements, connections, cfg.minChain);
+            return;
+        }
+
+        for (const start of elements) {
+            const kids = getStructuralChildIds(start.id, elements, connections);
+            if (kids.length !== 1) {
+                continue;
+            }
+            const chain = [start];
+            let cur = byId.get(kids[0]);
+            while (cur) {
+                chain.push(cur);
+                const nextKids = getStructuralChildIds(cur.id, elements, connections);
+                if (nextKids.length !== 1) {
+                    break;
+                }
+                cur = byId.get(nextKids[0]);
+            }
+            if (chain.length < cfg.minChain) {
+                continue;
+            }
+            for (let i = 0; i < chain.length - 1; i++) {
+                chain[i]._compactContainmentSpine = true;
+                chain[i]._tightSingleChildContainer = true;
+                chain[i]._precomputedPaddingTop = cfg.labelTop;
+            }
+        }
+    }
+
+    function shiftDescendantsAbsOnly(el, dx, dy, visible) {
+        if (!dx && !dy) {
+            return;
+        }
+        for (const c of visible) {
+            if (String(c.parent) === String(el.id)) {
+                c.x = (Number(c.x) || 0) + dx;
+                c.y = (Number(c.y) || 0) + dy;
+                shiftDescendantsAbsOnly(c, dx, dy, visible);
+            }
+        }
+    }
+
+    /** 부모→자식→… 단일 포함 체인 수집 (체인 시작 = 부모도 단일자식이 아닌 루트) */
+    function collectContainmentSpineChains(visible, byId, elements, connections, minLen) {
+        const chains = [];
+        const claimed = new Set();
+
+        for (const el of visible) {
+            if (claimed.has(el.id)) {
+                continue;
+            }
+            const kids = getStructuralChildIds(el.id, elements, connections);
+            if (kids.length !== 1) {
+                continue;
+            }
+            if (el.parent) {
+                const par = byId.get(el.parent);
+                if (par) {
+                    const parKids = getStructuralChildIds(par.id, elements, connections);
+                    if (parKids.length === 1) {
+                        continue;
+                    }
+                }
+            }
+
+            const chain = [el];
+            claimed.add(el.id);
+            let cur = byId.get(kids[0]);
+            while (cur && !cur.hidden) {
+                chain.push(cur);
+                claimed.add(cur.id);
+                const nextKids = getStructuralChildIds(cur.id, elements, connections);
+                if (nextKids.length !== 1) {
+                    break;
+                }
+                cur = byId.get(nextKids[0]);
+            }
+            if (chain.length >= minLen) {
+                chains.push(chain);
+            }
+        }
+        return chains;
+    }
+
+    /**
+     * test-4형 단일 체인 — 한 열 너비·세로 스파인·단계별 가로 중앙
+     */
+    function layoutContainmentSpineChain(chain, cfg, visible) {
+        if (!chain || chain.length < 2) {
+            return;
+        }
+
+        const sideL = cfg.singleLeft;
+        const sideR = cfg.singleRight;
+        const topPad = cfg.labelTop;
+        const bottomPad = cfg.singleBottom;
+        const leaf = chain[chain.length - 1];
+        const leafW = Number(leaf.width) || 120;
+
+        let columnW = cfg.labelMinW;
+        for (let i = 0; i < chain.length - 1; i++) {
+            columnW = Math.max(
+                columnW,
+                estimateTitleMinWidth(chain[i], cfg.labelMinW),
+            );
+        }
+        columnW = Math.max(columnW, leafW + sideL + sideR);
+
+        for (let i = 0; i < chain.length - 1; i++) {
+            const node = chain[i];
+            node.width = columnW;
+            node._containmentSpineChain = true;
+            node._tightSingleChildContainer = true;
+            node._compactContainmentSpine = true;
+            node._precomputedPaddingTop = topPad;
+        }
+        for (let i = 1; i < chain.length - 1; i++) {
+            chain[i].width = columnW;
+        }
+
+        for (let i = chain.length - 2; i >= 0; i--) {
+            const parent = chain[i];
+            const child = chain[i + 1];
+            const ch = Number(child.height) || 60;
+            parent.height = topPad + ch + bottomPad;
+        }
+
+        const root = chain[0];
+        const rootX = Number(root.x) || 0;
+        const rootY = Number(root.y) || 0;
+        root.x = rootX;
+        root.y = rootY;
+        if (!root.parent) {
+            root.relativeX = rootX;
+            root.relativeY = rootY;
+        }
+
+        for (let i = 0; i < chain.length - 1; i++) {
+            const parent = chain[i];
+            const child = chain[i + 1];
+            const cw = Number(child.width) || leafW;
+            const relX = Math.max(0, (columnW - cw) / 2);
+            const relY = topPad;
+            const px = Number(parent.x) || 0;
+            const py = Number(parent.y) || 0;
+            const oldX = Number(child.x) || 0;
+            const oldY = Number(child.y) || 0;
+            child.relativeX = relX;
+            child.relativeY = relY;
+            child.x = px + relX;
+            child.y = py + relY;
+            shiftDescendantsAbsOnly(child, child.x - oldX, child.y - oldY, visible);
+        }
+    }
+
+    function layoutSingleChildPair(parent, child, cfg, visible, useTight) {
+        if (!parent || !child) {
+            return;
+        }
+        const topPad = useTight
+            ? Math.max(Number(parent._precomputedPaddingTop) || 0, cfg.labelTop)
+            : Number(parent._precomputedPaddingTop) || cfg.labelTop;
+        const sideL = useTight ? cfg.singleLeft : 12;
+        const sideR = useTight ? cfg.singleRight : 12;
+        const bottomPad = useTight ? cfg.singleBottom : 20;
+        const cw = Number(child.width) || 120;
+        const ch = Number(child.height) || 60;
+        const needW = Math.max(cw + sideL + sideR, estimateTitleMinWidth(parent, cfg.labelMinW));
+        parent.width = needW;
+        parent.height = topPad + ch + bottomPad;
+        const relX = Math.max(0, (needW - cw) / 2);
+        const relY = topPad;
+        const px = Number(parent.x) || 0;
+        const py = Number(parent.y) || 0;
+        const oldX = Number(child.x) || 0;
+        const oldY = Number(child.y) || 0;
+        child.relativeX = relX;
+        child.relativeY = relY;
+        child.x = px + relX;
+        child.y = py + relY;
+        shiftDescendantsAbsOnly(child, child.x - oldX, child.y - oldY, visible);
+    }
+
+    /**
+     * 직접 BDD 자식 1개 — 체인은 스파인 통합, 나머지는 쌍 단위 최소·중앙
+     */
+    function layoutTightSingleChildContainers(diagramData) {
+        const elements = Array.isArray(diagramData?.elements)
+            ? diagramData.elements
+            : [];
+        const connections = Array.isArray(diagramData?.connections)
+            ? diagramData.connections
+            : [];
+        const visible = elements.filter((e) => e && !e.hidden && e.id);
+        if (visible.length < 2) {
+            return;
+        }
+
+        const byId = indexElements(elements);
+        const cfg = getCompactSpineCfg();
+        const minChain =
+            Number(NS.Editor?.config?.displaySettings?.bdd?.containmentSpineMinChain) || 2;
+
+        const chains = collectContainmentSpineChains(
+            visible,
+            byId,
+            elements,
+            connections,
+            minChain,
+        );
+        try {
+            if (chains.length > 0) {
+                console.log(
+                    '[bddLayout] spine chains:',
+                    chains.length,
+                    chains.map((c) => c.map((n) => n.id).join('→')).join(' | '),
+                );
+            }
+        } catch (_) {}
+        const inSpine = new Set();
+        for (const chain of chains) {
+            layoutContainmentSpineChain(chain, cfg, visible);
+            for (const node of chain) {
+                inSpine.add(node.id);
+            }
+        }
+
+        for (const parent of visible) {
+            if (inSpine.has(parent.id)) {
+                continue;
+            }
+            const kids = getStructuralChildIds(parent.id, elements, connections);
+            if (kids.length !== 1) {
+                continue;
+            }
+            const child = byId.get(kids[0]);
+            layoutSingleChildPair(
+                parent,
+                child,
+                cfg,
+                visible,
+                isTightSingleChildContainer(parent),
+            );
+        }
+    }
+
     function shouldPackContainmentChildrenHorizontally(parentEl) {
         if (!parentEl) return false;
         const t = String(parentEl.type || '').toLowerCase();
@@ -469,7 +829,17 @@
         packContainmentChildrenHorizontally(diagramData);
         fitDiagramToMargins(diagramData, cfg.margin);
         resolveSiblingOverlaps(diagramData, cfg.siblingPad);
+        markCompactContainmentSpines(diagramData);
+        layoutTightSingleChildContainers(diagramData);
         clearSpecWaypoints(diagramData);
+        try {
+            const spineN = (diagramData.elements || []).filter(
+                (e) => e && e._containmentSpineChain,
+            ).length;
+            if (spineN > 0) {
+                console.log('[bddLayout] containment spine 적용:', spineN, '컨테이너');
+            }
+        } catch (_) {}
     }
 
     NS.Editor.layout.bdd = {
@@ -477,6 +847,10 @@
         applyPostLayout,
         applySpecVerticalBands,
         applySpecChildrenSymmetric,
+        markCompactContainmentSpines,
+        layoutTightSingleChildContainers,
+        layoutContainmentSpineChains: layoutTightSingleChildContainers,
+        layoutCompactContainmentSpines: layoutTightSingleChildContainers,
         packContainmentChildrenHorizontally,
         resolveSiblingOverlaps,
         fitDiagramToMargins,

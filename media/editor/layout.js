@@ -98,6 +98,13 @@
           el.height = el.height || (SN?.containerDefault?.height ?? 150);
         }
 
+        if (el._compactContainmentSpine || el._tightSingleChildContainer) {
+          const spineTop =
+            Number(DS?.bdd?.compactSpineLabelTop) || 32;
+          el._precomputedPaddingTop = spineTop;
+          continue;
+        }
+
         // 컨테이너의 label+compartment 높이 → ELK paddingTop으로 전달
         if (hasMetrics) {
           let containerComps = el.compartments || [];
@@ -460,5 +467,16 @@
     }
   }
 
-  ns.Editor.layout = { run, grid, hierarchicalGrid, precomputeNodeSizes };
+  // bddLayout.js 가 먼저 NS.Editor.layout.bdd 를 등록함 — 전체 교체 시 스파인 후처리가 사라짐
+  const layoutBdd = ns.Editor.layout?.bdd;
+  ns.Editor.layout = {
+    ...(ns.Editor.layout || {}),
+    run,
+    grid,
+    hierarchicalGrid,
+    precomputeNodeSizes,
+  };
+  if (layoutBdd) {
+    ns.Editor.layout.bdd = layoutBdd;
+  }
 })();

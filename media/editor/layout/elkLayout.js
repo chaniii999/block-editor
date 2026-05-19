@@ -131,20 +131,29 @@
    * diagramData: { elements: [{id, name, width, height, x, y}], connections: [{id, source, target}] }
    * options: optional ELK layout options
    */
+  function invokeBddPostLayout(diagramData, elkCfg) {
+    if (NS.Editor?.layout?.bdd?.applyPostLayout) {
+      NS.Editor.layout.bdd.applyPostLayout(diagramData, elkCfg);
+      return true;
+    }
+    console.warn(
+      '[applyElkLayout] NS.Editor.layout.bdd 없음 — 단일 자식 스파인 후처리 스킵 (layout.js 로드 순서 확인)',
+    );
+    return false;
+  }
+
   NS.applyElkLayout = async function(diagramData, options = {}) {
+    const DS = window.SELAB?.Editor?.config?.displaySettings;
+    const ELK_CFG = DS?.elk;
     try {
       if (!diagramData || !Array.isArray(diagramData.elements)) return;
       const ELKCtor = window.ELK;
       if (typeof ELKCtor !== 'function') {
         console.log('[applyElkLayout] ELK not available, using fallback grid');
         fallbackGrid(diagramData);
+        invokeBddPostLayout(diagramData, ELK_CFG);
         return;
       }
-
-      // displaySettings에서 ELK 설정 참조
-      const DS = window.SELAB?.Editor?.config?.displaySettings;
-      const ELK_CFG = DS?.elk;
-  
 
       const elk = new ELKCtor();
       const nodeById = new Map();
@@ -616,12 +625,30 @@
               const paddingBottom =
                 (isWhileLoop ? (CP?.whileLoopBottom ?? 70) : (CP?.bottom ?? 10)) + footerPad;
 
+              const hasActionFlow = Array.isArray(n.compartments) &&
+                n.compartments.some(c => c.key === 'actionFlow');
+              const directKids = childrenOf.get(n.id) || [];
+              const bddSc = DS?.bdd?.singleChildContainmentPad;
+              const isBddPart =
+                typeLower.includes('partdefinition') ||
+                typeLower.includes('partusage') ||
+                typeLower.includes('package');
+              let padLeft = CP?.left ?? 10;
+              let padRight = CP?.right ?? 10;
+              if (
+                directKids.length === 1 &&
+                isBddPart &&
+                !isIfAction &&
+                !isWhileLoop &&
+                !hasActionFlow
+              ) {
+                padLeft = bddSc?.left ?? 6;
+                padRight = bddSc?.right ?? 6;
+              }
+
               // 컨테이너 내부: containerChildSpacing으로 actor 등 엣지 없는 자식 노드 간 세로 간격 제어
               // (별도 connected component로 처리되므로 componentComponentSpacing 사용)
               const childSpacing = String(ELK_CFG?.containerChildSpacing ?? 40);
-              // actionFlow compartment가 있는 컨테이너는 spacing 축소
-              const hasActionFlow = Array.isArray(n.compartments) &&
-                n.compartments.some(c => c.key === 'actionFlow');
               const AF = ELK_CFG?.actionFlow;
               const betweenLayers = hasActionFlow
                 ? String(AF?.nodeNodeBetweenLayers ?? 50)
@@ -633,19 +660,32 @@
                 ? String(AF?.edgeNodeSpacing ?? 20)
                 : String(ELK_CFG?.edgeNodeSpacing ?? 40);
 
+              const singleStructuralChild = directKids.length === 1 && isBddPart && !hasActionFlow;
+              const spineSpacing = String(DS?.bdd?.compactSpineGap ?? 4);
               const containerLayoutOpts = {
-                  'elk.padding': `top=${paddingTop},left=${CP?.left ?? 10},right=${CP?.right ?? 10},bottom=${paddingBottom}`,
-                  'elk.spacing.nodeNode': String(ELK_CFG?.nodeNodeSpacing ?? 80),
-                  'elk.layered.spacing.nodeNodeBetweenLayers': betweenLayers,
-                  'elk.spacing.componentComponent': childSpacing,
+                  'elk.padding': `top=${paddingTop},left=${padLeft},right=${padRight},bottom=${paddingBottom}`,
+                  'elk.spacing.nodeNode': singleStructuralChild
+                      ? spineSpacing
+                      : String(ELK_CFG?.nodeNodeSpacing ?? 80),
+                  'elk.layered.spacing.nodeNodeBetweenLayers': singleStructuralChild
+                      ? spineSpacing
+                      : betweenLayers,
+                  'elk.spacing.componentComponent': singleStructuralChild
+                      ? spineSpacing
+                      : childSpacing,
                   'elk.layered.spacing.edgeNodeBetweenLayers': edgeNodeBL,
                   'elk.spacing.edgeNode': edgeNodeSp,
                   'elk.algorithm': ELK_CFG?.algorithm ?? 'layered',
                   'elk.direction': ELK_CFG?.direction ?? 'DOWN',
                   'elk.edgeRouting': ELK_CFG?.edgeRouting ?? 'ORTHOGONAL',
                   'elk.layered.cycleBreaking.strategy': 'MODEL_ORDER',
-                  'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED'
+                  'elk.layered.nodePlacement.bk.fixedAlignment': singleStructuralChild
+                      ? 'BALANCED'
+                      : 'BALANCED',
               };
+              if (singleStructuralChild) {
+                  containerLayoutOpts['elk.layered.considerModelOrder.strategy'] = 'NODES_AND_EDGES';
+              }
 
               const elkNodeChildren = toElkChildren(n.id);
               const elkNode = {
@@ -894,18 +934,6 @@
       }
       applyPositions(result, 0, 0);
 
-      if (NS.Editor?.layout?.bdd?.applyPostLayout) {
-        NS.Editor.layout.bdd.applyPostLayout(diagramData, ELK_CFG);
-      } else {
-        applySpecializationVerticalLayout(diagramData, ELK_CFG);
-        applySpecializationAroundParentLayout(diagramData, ELK_CFG);
-        if (typeof NS.Editor?.layout?.bdd?.packContainmentChildrenHorizontally === 'function') {
-          NS.Editor.layout.bdd.packContainmentChildrenHorizontally(diagramData);
-        }
-        fitDiagramToMargins(diagramData, 48);
-        resolveSiblingOverlaps(diagramData);
-      }
-
       const specInvolved = collectSpecInvolvedNodeIds(diagramData.connections);
 
       /**
@@ -1006,12 +1034,19 @@
           console.log('[applyElkLayout] alignRanks failed', e);
         }
       }
-      if (!NS.Editor?.layout?.bdd?.resolveSiblingOverlaps) {
+
+      if (!invokeBddPostLayout(diagramData, ELK_CFG)) {
+        applySpecializationVerticalLayout(diagramData, ELK_CFG);
+        applySpecializationAroundParentLayout(diagramData, ELK_CFG);
+        fitDiagramToMargins(diagramData, 48);
+        resolveSiblingOverlaps(diagramData);
+      } else if (!NS.Editor?.layout?.bdd?.resolveSiblingOverlaps) {
         resolveSiblingOverlaps(diagramData);
       }
     } catch (err) {
       console.log('[applyElkLayout] error - falling back to grid', err);
       fallbackGrid(diagramData);
+      invokeBddPostLayout(diagramData, ELK_CFG);
     }
   };
 
