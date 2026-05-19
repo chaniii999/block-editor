@@ -159,8 +159,16 @@
                     const cGeo = graphModel.getGeometry(childCell);
                     if (pGeo && cGeo) {
                         const contentTop = getContentAreaTop(parentCell, parentNodeEarly);
-                        const cw = Number(childNode.width) || Number(cGeo.width) || 120;
-                        const ch = Number(childNode.height) || Number(cGeo.height) || 60;
+                        const cw = Math.max(
+                            Number(childNode.width) || 0,
+                            Number(cGeo.width) || 0,
+                            120,
+                        );
+                        const ch = Math.max(
+                            Number(childNode.height) || 0,
+                            Number(cGeo.height) || 0,
+                            60,
+                        );
                         const side =
                             Number(parentNodeEarly._spineSidePad) ||
                             Number(spinePad.left) ||
@@ -171,23 +179,32 @@
                             Number(spinePad.bottom) ||
                             Number(DS?.bdd?.singleChildContainmentPad?.bottom) ||
                             8;
+                        const footerH =
+                            Number(parentNodeEarly._featureUsageFooterHeight) ||
+                            Number(parentCell._featureUsageFooterHeight) ||
+                            0;
                         const name = String(parentNodeEarly.name || parentNodeEarly.id || '');
                         const titleW = Math.max(72, name.length * 7 + 20);
-                        const layoutW = Number(parentNodeEarly.width);
-                        const parentW =
-                            layoutW > 0
-                                ? layoutW
-                                : Math.max(cw + side * 2, titleW);
+                        const layoutW = Number(parentNodeEarly.width) || 0;
+                        const parentW = Math.max(
+                            layoutW,
+                            cw + side * 2,
+                            titleW,
+                        );
                         const relX = Math.max(0, (parentW - cw) / 2);
                         const newChild = cGeo.clone();
                         newChild.x = relX;
                         newChild.y = contentTop;
+                        newChild.width = cw;
+                        newChild.height = ch;
                         graphModel.setGeometry(childCell, newChild);
+                        childNode.width = cw;
+                        childNode.height = ch;
                         childNode.relativeX = relX;
                         childNode.relativeY = contentTop;
                         const newParent = pGeo.clone();
                         newParent.width = parentW;
-                        newParent.height = contentTop + ch + bottom;
+                        newParent.height = contentTop + ch + bottom + footerH;
                         graphModel.setGeometry(parentCell, newParent);
                         parentNodeEarly.width = newParent.width;
                         parentNodeEarly.height = newParent.height;
@@ -357,6 +374,10 @@
                         newGeo.height = Math.max(fitH, 60);
                     }
                     graphModel.setGeometry(parentCell, newGeo);
+                    if (parentNode) {
+                        parentNode.width = newGeo.width;
+                        parentNode.height = newGeo.height;
+                    }
                 }
             }
         }

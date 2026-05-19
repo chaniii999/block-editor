@@ -62,7 +62,8 @@
     }
 
     /**
-     * 부모(target) Y 밴드 < 자식(source) — 루트 spec 계층
+     * 부모(target) Y 밴드 < 자식(source) — spec 트리(숲)마다 독립 적용
+     * (test-5: Signal·Bus·Transmitter·Receiver를 한 줄 Y에 몰지 않음)
      */
     function applySpecVerticalBands(diagramData, cfg) {
         const elements = Array.isArray(diagramData?.elements)
@@ -73,8 +74,10 @@
             : [];
         if (elements.length === 0 || connections.length === 0) return;
 
+        const visible = elements.filter((e) => e && !e.hidden && e.id);
         const byId = indexElements(elements);
-        const childToParent = new Map();
+        const childToParents = new Map();
+        const childrenOf = new Map();
         const involved = new Set();
 
         for (const conn of connections) {
@@ -84,69 +87,256 @@
             if (!byId.has(childId) || !byId.has(parentId) || childId === parentId) {
                 continue;
             }
-            childToParent.set(childId, parentId);
+            if (!childToParents.has(childId)) {
+                childToParents.set(childId, []);
+            }
+            const plist = childToParents.get(childId);
+            if (!plist.includes(parentId)) {
+                plist.push(parentId);
+            }
+            if (!childrenOf.has(parentId)) {
+                childrenOf.set(parentId, []);
+            }
+            const clist = childrenOf.get(parentId);
+            if (!clist.includes(childId)) {
+                clist.push(childId);
+            }
             involved.add(childId);
             involved.add(parentId);
         }
         if (involved.size === 0) return;
 
-        function layoutRootId(nodeId) {
-            let cur = byId.get(nodeId);
-            while (cur?.parent && byId.has(cur.parent)) {
-                cur = byId.get(cur.parent);
-            }
-            return cur?.id || nodeId;
-        }
+        const layerGap = cfg.layerGap;
 
-        const layer = new Map();
-        function assignLayer(nodeId) {
-            if (layer.has(nodeId)) return layer.get(nodeId);
-            const parentId = childToParent.get(nodeId);
-            const value = parentId ? assignLayer(parentId) + 1 : 0;
+        function assignLayer(nodeId, layer) {
+            if (layer.has(nodeId)) {
+                return layer.get(nodeId);
+            }
+            const parents = childToParents.get(nodeId) || [];
+            let value = 0;
+            if (parents.length > 0) {
+                value =
+                    Math.max(...parents.map((p) => assignLayer(p, layer))) + 1;
+            }
             layer.set(nodeId, value);
             return value;
         }
-        for (const id of involved) assignLayer(id);
 
-        const rootsByLayer = new Map();
-        for (const id of involved) {
-            const rootId = layoutRootId(id);
-            const l = layer.get(id) ?? 0;
-            const prev = rootsByLayer.get(rootId);
-            rootsByLayer.set(rootId, prev == null ? l : Math.max(prev, l));
-        }
-
-        const layerToRoots = new Map();
-        for (const [rootId, l] of rootsByLayer) {
-            if (!layerToRoots.has(l)) layerToRoots.set(l, []);
-            layerToRoots.get(l).push(rootId);
-        }
-
-        const layerGap = cfg.layerGap;
-        const startY = Math.min(
-            ...[...rootsByLayer.keys()].map((id) => Number(byId.get(id)?.y) || 0),
-        );
-        let bandY = Number.isFinite(startY) ? startY : 50;
-        const sortedLayers = [...layerToRoots.keys()].sort((a, b) => a - b);
-
-        for (const l of sortedLayers) {
-            const rootIds = layerToRoots.get(l) || [];
-            let bandHeight = 0;
-            for (const rootId of rootIds) {
-                const n = byId.get(rootId);
-                bandHeight = Math.max(bandHeight, Number(n?.height) || 60);
-            }
-            for (const rootId of rootIds) {
-                const n = byId.get(rootId);
-                if (!n) continue;
-                const dy = bandY - (Number(n.y) || 0);
-                if (Math.abs(dy) > 1) {
-                    n.y = (Number(n.y) || 0) + dy;
-                    if (!n.parent) n.relativeY = n.y;
+        function collectSpecSubtree(forestRootId) {
+            const out = new Set([forestRootId]);
+            const q = [forestRootId];
+            while (q.length > 0) {
+                const pid = q.shift();
+                for (const cid of childrenOf.get(pid) || []) {
+                    if (!out.has(cid)) {
+                        out.add(cid);
+                        q.push(cid);
+                    }
                 }
             }
-            bandY += bandHeight + layerGap;
+            return out;
         }
+
+        const forestRoots = [];
+        for (const id of involved) {
+            if (!childToParents.has(id)) {
+                forestRoots.push(id);
+            }
+        }
+
+        for (const forestRootId of forestRoots) {
+            const subtree = collectSpecSubtree(forestRootId);
+            const layer = new Map();
+            for (const id of subtree) {
+                assignLayer(id, layer);
+            }
+
+            const layerToNodes = new Map();
+            for (const id of subtree) {
+                const l = layer.get(id) ?? 0;
+                if (!layerToNodes.has(l)) {
+                    layerToNodes.set(l, []);
+                }
+                layerToNodes.get(l).push(id);
+            }
+
+            let bandY = Infinity;
+            for (const id of subtree) {
+                bandY = Math.min(bandY, Number(byId.get(id)?.y) || 0);
+            }
+            if (!Number.isFinite(bandY)) {
+                bandY = 50;
+            }
+
+            const sortedLayers = [...layerToNodes.keys()].sort((a, b) => a - b);
+            for (const l of sortedLayers) {
+                const nodeIds = layerToNodes.get(l) || [];
+                let bandHeight = 0;
+                for (const id of nodeIds) {
+                    const n = byId.get(id);
+                    bandHeight = Math.max(
+                        bandHeight,
+                        Number(n?.height) || 60,
+                    );
+                }
+                for (const id of nodeIds) {
+                    const n = byId.get(id);
+                    if (!n) {
+                        continue;
+                    }
+                    // containment 안에 있는 노드는 컨테이너 좌표 유지 (test-2 Triangle@Layer)
+                    if (n.parent && byId.has(n.parent)) {
+                        continue;
+                    }
+                    const oldY = Number(n.y) || 0;
+                    const dy = bandY - oldY;
+                    if (Math.abs(dy) > 1) {
+                        n.y = oldY + dy;
+                        if (!n.parent) {
+                            n.relativeY = n.y;
+                        }
+                        shiftDescendantsOf(n.id, 0, dy, visible);
+                    }
+                }
+                bandY += bandHeight + layerGap;
+            }
+        }
+    }
+
+    function buildSpecChildToParents(connections, byId) {
+        const childToParents = new Map();
+        for (const conn of connections) {
+            if (!isSpecKind(conn.kind || conn.type)) {
+                continue;
+            }
+            const childId = conn.source;
+            const parentId = conn.target;
+            if (!byId.has(childId) || !byId.has(parentId) || childId === parentId) {
+                continue;
+            }
+            if (!childToParents.has(childId)) {
+                childToParents.set(childId, []);
+            }
+            const plist = childToParents.get(childId);
+            if (!plist.includes(parentId)) {
+                plist.push(parentId);
+            }
+        }
+        return childToParents;
+    }
+
+    /** UML: spec 부모(target)가 자식(source)보다 위 — containment 안 자식 절대 Y 기준 */
+    function enforceSpecParentAboveChildren(diagramData, cfg) {
+        const elements = Array.isArray(diagramData?.elements)
+            ? diagramData.elements
+            : [];
+        const connections = Array.isArray(diagramData?.connections)
+            ? diagramData.connections
+            : [];
+        if (elements.length === 0 || connections.length === 0) {
+            return;
+        }
+
+        const byId = indexElements(elements);
+        const childToParents = buildSpecChildToParents(connections, byId);
+        const gap = Math.max(Number(cfg.corridorGap) + 20, 40);
+        const MAX_PASS = 16;
+
+        function shiftSpecAncestorsUp(nodeId, dy, visited) {
+            if (!dy || visited.has(nodeId)) {
+                return;
+            }
+            visited.add(nodeId);
+            const n = byId.get(nodeId);
+            if (!n) {
+                return;
+            }
+            n.y = (Number(n.y) || 0) + dy;
+            if (!n.parent) {
+                n.relativeY = n.y;
+            }
+            for (const pid of childToParents.get(nodeId) || []) {
+                shiftSpecAncestorsUp(pid, dy, visited);
+            }
+        }
+
+        for (let pass = 0; pass < MAX_PASS; pass++) {
+            let moved = false;
+            const requiredTopY = new Map();
+
+            for (const conn of connections) {
+                if (!isSpecKind(conn.kind || conn.type)) {
+                    continue;
+                }
+                const child = byId.get(conn.source);
+                const parent = byId.get(conn.target);
+                if (!child || !parent || child.hidden || parent.hidden) {
+                    continue;
+                }
+                const childTop = Number(child.y) || 0;
+                const parentH = Number(parent.height) || 60;
+                const needY = childTop - gap - parentH;
+                const pid = parent.id;
+                const prev = requiredTopY.get(pid);
+                requiredTopY.set(
+                    pid,
+                    prev == null ? needY : Math.min(prev, needY),
+                );
+            }
+
+            for (const [parentId, needY] of requiredTopY) {
+                const parent = byId.get(parentId);
+                if (!parent) {
+                    continue;
+                }
+                const py = Number(parent.y) || 0;
+                if (py > needY + 1) {
+                    shiftSpecAncestorsUp(parentId, needY - py, new Set());
+                    moved = true;
+                }
+            }
+            if (!moved) {
+                break;
+            }
+        }
+    }
+
+    function shiftDescendantsOf(parentId, dx, dy, visible) {
+        if (!dx && !dy) {
+            return;
+        }
+        for (const d of visible) {
+            if (String(d.parent) !== String(parentId)) {
+                continue;
+            }
+            d.x = (Number(d.x) || 0) + dx;
+            d.y = (Number(d.y) || 0) + dy;
+            if (d.parent) {
+                if (typeof d.relativeX === 'number') {
+                    d.relativeX += dx;
+                }
+                if (typeof d.relativeY === 'number') {
+                    d.relativeY += dy;
+                }
+            }
+            shiftDescendantsOf(d.id, dx, dy, visible);
+        }
+    }
+
+    /** spec 형제 배치·겹침 방지용 — 자식 containment 반영된 가로 폭 */
+    function layoutWidthForSpecSibling(node, visible) {
+        const base = Number(node.width) || 120;
+        const nx = Number(node.x) || 0;
+        let maxR = base;
+        for (const d of visible) {
+            if (String(d.parent) !== String(node.id)) {
+                continue;
+            }
+            const right =
+                (Number(d.x) || 0) - nx + (Number(d.width) || 120);
+            maxR = Math.max(maxR, right);
+        }
+        return maxR;
     }
 
     /**
@@ -159,6 +349,7 @@
         const connections = Array.isArray(diagramData?.connections)
             ? diagramData.connections
             : [];
+        const visible = elements.filter((e) => e && !e.hidden && e.id);
         const byId = indexElements(elements);
 
         const specChildrenOf = new Map();
@@ -175,10 +366,11 @@
 
         const siblingGap = cfg.siblingGap;
         const belowParentGap = Math.max(cfg.layerGap, cfg.corridorGap + 24);
+        const specRowPlaced = new Set();
 
         for (const [parentId, childIds] of specChildrenOf) {
             const parent = byId.get(parentId);
-            if (!parent || parent.parent) continue;
+            if (!parent) continue;
 
             const children = childIds
                 .map((id) => byId.get(id))
@@ -196,21 +388,58 @@
             const pcx = px + pw / 2;
 
             const belowY = py + ph + belowParentGap;
+            const childWidths = children.map((c) =>
+                layoutWidthForSpecSibling(c, visible),
+            );
             let rowW = 0;
-            for (const c of children) {
-                rowW += Number(c.width) || 120;
+            for (const cw of childWidths) {
+                rowW += cw;
             }
             rowW += siblingGap * Math.max(0, children.length - 1);
             let cx = pcx - rowW / 2;
-            for (const c of children) {
-                const cw = Number(c.width) || 120;
+            for (let ci = 0; ci < children.length; ci++) {
+                const c = children[ci];
+                if (specRowPlaced.has(c.id)) {
+                    cx += childWidths[ci] + siblingGap;
+                    continue;
+                }
+                const cw = childWidths[ci];
+                const oldX = Number(c.x) || 0;
+                const oldY = Number(c.y) || 0;
                 c.x = cx;
                 c.y = belowY;
                 if (!parent.parent) {
                     c.relativeX = c.x;
                     c.relativeY = c.y;
                 }
+                shiftDescendantsOf(c.id, c.x - oldX, c.y - oldY, visible);
+                specRowPlaced.add(c.id);
                 cx += cw + siblingGap;
+            }
+            for (let i = 0; i < children.length - 1; i++) {
+                const a = children[i];
+                const b = children[i + 1];
+                const aRight =
+                    (Number(a.x) || 0) + layoutWidthForSpecSibling(a, visible);
+                const minBx = aRight + siblingGap;
+                const bx = Number(b.x) || 0;
+                if (bx < minBx) {
+                    const dx = minBx - bx;
+                    const oldBx = bx;
+                    b.x = minBx;
+                    if (!b.parent) {
+                        b.relativeX = b.x;
+                    }
+                    shiftDescendantsOf(b.id, b.x - oldBx, 0, visible);
+                    for (let j = i + 2; j < children.length; j++) {
+                        const prevX = Number(children[j].x) || 0;
+                        children[j].x = prevX + dx;
+                        if (!children[j].parent) {
+                            children[j].relativeX = children[j].x;
+                        }
+                        shiftDescendantsOf(children[j].id, dx, 0, visible);
+                    }
+                }
             }
         }
     }
@@ -481,8 +710,20 @@
             const parent = chain[i];
             const child = chain[i + 1];
             const ch = Number(child.height) || 60;
+            const cw = Number(child.width) || 120;
+            const sidePad = Number(parent._spineSidePad) || cfg.singleLeft;
             const bottomPad = Number(parent._spineBottomPad) || cfg.singleBottom;
-            parent.height = topPad + ch + bottomPad;
+            const footerH = Number(parent._featureUsageFooterHeight) || 0;
+            const titleMin = estimateTitleMinWidth(parent, cfg.labelMinW);
+            parent.width = Math.max(
+                Number(parent.width) || 0,
+                titleMin,
+                cw + sidePad * 2,
+            );
+            parent.height = Math.max(
+                Number(parent.height) || 0,
+                topPad + ch + bottomPad + footerH,
+            );
         }
 
         const root = chain[0];
@@ -498,8 +739,8 @@
         for (let i = 0; i < n - 1; i++) {
             const parent = chain[i];
             const child = chain[i + 1];
-            const parentW = widths[i];
-            const childW = widths[i + 1];
+            const parentW = Number(parent.width) || widths[i];
+            const childW = Number(child.width) || widths[i + 1];
             const relX = Math.max(0, (parentW - childW) / 2);
             const relY = topPad;
             const px = Number(parent.x) || 0;
@@ -526,9 +767,10 @@
         const bottomPad = useTight ? cfg.singleBottom : 20;
         const cw = Number(child.width) || 120;
         const ch = Number(child.height) || 60;
+        const footerH = Number(parent._featureUsageFooterHeight) || 0;
         const needW = Math.max(cw + sideL + sideR, estimateTitleMinWidth(parent, cfg.labelMinW));
         parent.width = needW;
-        parent.height = topPad + ch + bottomPad;
+        parent.height = topPad + ch + bottomPad + footerH;
         const relX = Math.max(0, (needW - cw) / 2);
         const relY = topPad;
         const px = Number(parent.x) || 0;
@@ -737,11 +979,9 @@
         const MAX_PASS = 16;
 
         function bounds(el) {
-            const x = Number(el.relativeX ?? el.x) || 0;
-            const y = Number(el.relativeY ?? el.y) || 0;
             return {
-                x,
-                y,
+                x: Number(el.x) || 0,
+                y: Number(el.y) || 0,
                 w: Number(el.width) || 120,
                 h: Number(el.height) || 60,
             };
@@ -789,19 +1029,27 @@
                     if (Math.abs(ba.y - bb.y) > GAP) return ba.y - bb.y;
                     return ba.x - bb.x;
                 });
-                for (let i = 0; i < siblings.length - 1; i++) {
-                    const a = bounds(siblings[i]);
-                    const b = bounds(siblings[i + 1]);
-                    if (!overlaps(a, b)) continue;
-                    const dx = a.x + a.w + GAP - b.x;
-                    if (dx > 0) {
-                        shiftSubtree(siblings[i + 1], dx, 0);
-                        moved = true;
-                    }
-                    const dy = a.y + a.h + GAP - b.y;
-                    if (dy > 0 && Math.abs(a.x - b.x) < GAP + Math.min(a.w, b.w)) {
-                        shiftSubtree(siblings[i + 1], 0, dy);
-                        moved = true;
+                for (let i = 0; i < siblings.length; i++) {
+                    for (let j = i + 1; j < siblings.length; j++) {
+                        const a = bounds(siblings[i]);
+                        const b = bounds(siblings[j]);
+                        if (!overlaps(a, b)) {
+                            continue;
+                        }
+                        const dx = a.x + a.w + GAP - b.x;
+                        if (dx > 0) {
+                            shiftSubtree(siblings[j], dx, 0);
+                            moved = true;
+                        }
+                        const bb = bounds(siblings[j]);
+                        const dy = a.y + a.h + GAP - bb.y;
+                        if (
+                            dy > 0 &&
+                            Math.abs(a.x - bb.x) < GAP + Math.min(a.w, bb.w)
+                        ) {
+                            shiftSubtree(siblings[j], 0, dy);
+                            moved = true;
+                        }
                     }
                 }
             }
@@ -855,12 +1103,13 @@
         if (!diagramData) return;
         const cfg = getBddCfg(elkCfg);
         applySpecVerticalBands(diagramData, cfg);
-        applySpecChildrenSymmetric(diagramData, cfg);
         packContainmentChildrenHorizontally(diagramData);
-        fitDiagramToMargins(diagramData, cfg.margin);
-        resolveSiblingOverlaps(diagramData, cfg.siblingPad);
         markCompactContainmentSpines(diagramData);
         layoutTightSingleChildContainers(diagramData);
+        applySpecChildrenSymmetric(diagramData, cfg);
+        enforceSpecParentAboveChildren(diagramData, cfg);
+        fitDiagramToMargins(diagramData, cfg.margin);
+        resolveSiblingOverlaps(diagramData, cfg.siblingPad);
         clearSpecWaypoints(diagramData);
         try {
             const spineN = (diagramData.elements || []).filter(
@@ -876,6 +1125,7 @@
         isSpecKind,
         applyPostLayout,
         applySpecVerticalBands,
+        enforceSpecParentAboveChildren,
         applySpecChildrenSymmetric,
         markCompactContainmentSpines,
         layoutTightSingleChildContainers,

@@ -513,7 +513,7 @@ normalize → deriveHierarchy
 > **얕은 단계**는 자식 박스가 분명히 안쪽에 보이도록 좌우 프레임을 넓히고,  
 > **깊은 단계**는 최소 좌우·하단 여백을 줄여 박스가 줄어들 때 여백도 같이 줄이기.
 
-### 수정 (미커밋)
+### 수정 (`b1b2cda`)
 
 | 파일 | 변경 |
 |------|------|
@@ -542,10 +542,165 @@ normalize → deriveHierarchy
 
 ---
 
+## 2026-05-19 — test-1 Car/Truck 겹침 · test-4 HW 부모-자식 넘침
+
+### 증상
+
+- test-1: `Car`·`Truck` bbox 겹침
+- test-4: `HardwareSubsystem`가 `HardwareSystem` 박스 밖으로 걸침
+
+### 원인
+
+| 이슈 | 원인 |
+|------|------|
+| Car/Truck | `applySpecChildrenSymmetric` 배치 후 **최소 가로 간격** 미보장 (루트 전체 `resolveSiblingOverlaps`만으로는 인접하지 않은 쌍 누락) |
+| HW 넘침 | 스파인 부모 `height`에 **FeatureTyping 푸터**(`hw_p`) 미포함; mx `resizeParents`가 **모델보다 큰 자식 geometry**·확장된 `HardwareSubsystem` 폭을 부모에 반영 안 함 |
+
+### 수정 (미커밋)
+
+- `bddLayout.js`: spec 자식 행 **gap 강제**; 스파인·`layoutSingleChildPair`에 `_featureUsageFooterHeight` 반영; 스파인 부모 `width/height` 자식 기준 재맞춤
+- `MxCellFactory.js`: 단일 자식 부모 — `max(모델, mxGeo)` 자식 크기, 푸터 높이, `parentW = max(layout, child+pad)`; 다자식 부모 **모델 width/height 동기화**
+
+### 확인
+
+- Reload Window → `test-1.json` Car/Truck 분리
+- `test-4.json` HardwareSubsystem가 HardwareSystem 안쪽
+
+### test-5 — spec 숲 겹침 (Signal·Bus·Codec 등)
+
+**계층 (spec, containment 요약):**
+
+```text
+Signal ← AnalogSignal, DigitalSignal ← PWMSignal|I2CSignal|SPISignal|UARTSignal
+Bus ← I2CBus|SPIBus|UARTBus  (각 Bus → Signal 타입 containment)
+Transmitter ← Transceiver → Receiver (이중 specialization)
+Codec — spec 없음, association만 (루트)
+```
+
+**원인**
+
+| # | 원인 |
+|---|------|
+| 1 | `applySpecVerticalBands`가 **서로 다른 spec 루트**(Signal·Bus·Transmitter·Receiver)를 **같은 layer-0 밴드 Y**에 배치 |
+| 2 | `Transceiver` **이중 spec 부모** — `childToParent` 맵 덮어쓰기 + symmetric **두 번 배치** |
+| 3 | `resolveSiblingOverlaps`가 `relativeX` 사용·**인접 쌍만** 밀어 루트(Codec 등) 겹침 잔존 |
+
+**수정:** spec **숲(forest)마다** Y 밴드, 다중 spec 부모 layer=max(parent)+1, symmetric `specRowPlaced`, 겹침 **절대좌표·전쌍** 검사
+
+### test-2 — Polygon이 Triangle 아래에 있음
+
+**관계:** `Triangle → Polygon` (specialization), `Layer → Triangle` (containment). Triangle은 Layer 안, Polygon은 밖.
+
+**원인:** `applySpecVerticalBands`가 Triangle까지 spec 밴드 Y로 끌어올림 + Polygon은 ELK 위치 유지 → 부모가 자식보다 아래.
+
+**수정:** containment `parent` 있는 노드는 spec 밴드 Y 스킵; `enforceSpecParentAboveChildren` — 자식 **절대 Y** 기준으로 spec 부모·조상을 위로만 이동.
+
+### 후속 (test-1 여전히 겹침)
+
+**원인:** `applySpecChildrenSymmetric`이 **pack·단일자식 tight보다 먼저** 실행 → `Car.width`가 작은 값(≈120)으로 `Truck.x` 계산 → 넓어진 Car 박스 위에 Truck 겹침.
+
+**수정:** `applyPostLayout` 순서 변경 — pack → spine/tight → **그 다음** spec 형제 배치. `layoutWidthForSpecSibling`로 Car 내부 containment 폭 반영, 이동 시 `shiftDescendantsOf`.
+
+---
+
+## 2026-05-19 — 롤백: 레이아웃 파이프라인·geometry 일괄 수정 철회
+
+### 상황
+
+> README 정합 작업으로 **한 번에** 넣었던 변경 후 레이아웃 전반이 깨져 **롤백**함.  
+> **현재 HEAD:** `b1b2cda` (스파인 깊이별 폭·여백만 유지).  
+> 철회된 것(미커밋): `layoutPipeline.js`, `diagramVertexUtils.js`, boot/fold 파이프라인 통합, geometry 필터, guiData spine 전면 스킵, `MxCellFactory` relative 동기화 일괄, panel `containmentPolicy` 삭제.
+
+### 깨졌을 가능성이 큰 원인 (추정)
+
+| # | 변경 | 예상 증상 |
+|---|------|-----------|
+| 1 | guiData 복원 시 `_tightSingleChildContainer`까지 위치 스킵 | test-1 등 **저장 좌표가 있는 대부분 단일자식 부모**가 ELK만 적용 → Vehicle·PowerTrain 등 전체 어긋남 |
+| 2 | geometry 저장에서 decor 제외 + 기존 store에 decor 키 혼재 | 일부 노드만 복원·누락이 섞여 **겹침·빈 공간** |
+| 3 | `runDiagramLayout`만 쓰고 boot와 **호출 순서·guiData 타이밍** 미검증 | 첫 로드 vs media refresh 결과 불일치 |
+| 4 | (덜 가능) 파이프라인 자체 | fold 경로만 깨지고 test-1은 정상이면 1·2 쪽 우선 |
+
+**교훈:** 레이아웃·guiData·store는 **한 태스크·한 파일·한 시나리오 검증** 후 다음 태스크.
+
+---
+
+## 태스크 계획 (README → 노드 안정 → 엣지, 순서 고정)
+
+> 각 태스크 **완료 조건**을 F5에서 확인한 뒤에만 다음으로. 실패 시 **해당 커밋만** revert.
+
+### T0 — 기준선 확인 (코드 변경 없음)
+
+| 항목 | 내용 |
+|------|------|
+| 목적 | 롤백 후 `b1b2cda`가 정상인지 확인 |
+| 확인 | Reload Window → `test-1.json`, `test-4.json` — 계층·스파인·겹침 |
+| 실패 시 | `b1b2cda` revert → `a3ae12c` 단일 columnW 스파인으로 후퇴 |
+
+### T1 — dead code 제거 (레이아웃 무관)
+
+| 항목 | 내용 |
+|------|------|
+| 변경 | `src/panel/containmentPolicy.js` 삭제 (webview는 `model/`만 사용) |
+| 위험 | **없음** (require 없음) |
+| 확인 | `npm run build` |
+
+### T2 — `MxCellFactory` relative 동기화만
+
+| 항목 | 내용 |
+|------|------|
+| 변경 | 센터링·겹침 해소 루프에서 `child._nodeData.relativeX/Y` 갱신 |
+| 위험 | **낮음** — 렌더 후 자식 위치만 모델과 맞춤 |
+| 깨지면 | test-1 PowerTrain 안 형제 간격 이상, 컨테이너 자식 치우침 |
+| 확인 | test-1, test-4 (스파인 체인 중앙 정렬) |
+
+### T3 — `applyElkAndRerender`만 boot와 동일 2줄
+
+| 항목 | 내용 |
+|------|------|
+| 변경 | media 저장 refresh 시 `markCompactContainmentSpines` + `precomputeNodeSizes` **만** 추가 (새 파일 없음) |
+| 위험 | **중간** — refresh 경로만 |
+| 깨지면 | test-4 JSON 저장 후 스파인 풀림 |
+| 확인 | test-4 저장 → 자동 refresh → 7단 스파인 유지 |
+
+### T4 — `layoutPipeline.js` (T3 통과 후)
+
+| 항목 | 내용 |
+|------|------|
+| 변경 | `runDiagramLayout` 추출, boot·fold·refresh가 호출 |
+| 위험 | **중간** — 호출 누락/이중 호출 주의 |
+| 확인 | T3 + fold expand/collapse on test-4 |
+
+### T5 — geometry 저장 필터
+
+| 항목 | 내용 |
+|------|------|
+| 변경 | `diagramVertexUtils` — compartment/decor 제외 후 save |
+| 위험 | **중간** — store 키 집합 변경 |
+| 깨지면 | 재오픈 시 노드 위치 일부만 복원 |
+| 확인 | 노드 드래그 → 저장 → 패널 닫았다 열기 → 위치 유지 (test-1) |
+
+### T6 — guiData spine 스킵 (조건 최소화)
+
+| 항목 | 내용 |
+|------|------|
+| 변경 | **`_containmentSpineChain`만** x/y/w/h 스킵 (`_tightSingleChildContainer` 전역 스킵 금지) |
+| 위험 | **높음** — T1~T5 후에만 |
+| 깨지면 | test-1 전체 배치 붕괴 (이전 롤백과 동일) |
+| 확인 | test-4 + test-1 둘 다 |
+
+### T7+ (보류) — README 엣지 쪽
+
+- `elkLayout` bdd 폴백 중복 제거  
+- non-spec 중첩 엣지 컨테이너 회피  
+- `isHierarchicalEdgeKind` 공통화  
+
+---
+
 ## 보류·참고
 
 | 항목 | 상태 |
 |------|------|
+| 레이아웃 파이프라인·geometry 일괄 패치 | **롤백됨** — 위 T1~T6 순서로만 재시도 |
 | Phase A postLayout / overlap 파이프라인 | stash에만 존재; 형제 `resolveSiblingOverlaps`로 부분 대체 |
 | `isSpecializationHierarchyKind` 중복 | elkLayout·MxEdgeBuilder — 공통 유틸 미정리 |
 | 커스텀_규칙 「자식 1개 = 화살표」 | 데이터 unnest는 비활성; **스파인 중첩**으로 대체 |
@@ -557,6 +712,7 @@ normalize → deriveHierarchy
 
 ```text
 브랜치: feature/layout-pipeline
+b1b2cda  feat(layout): BDD 스파인 깊이별 폭·여백 (HEAD)
 a3ae12c  feat(layout): BDD 포함 관계 및 레이아웃 개선 (스파인·containmentPolicy·layout.bdd 보존)
 178619d  feat(layout): BDD 자식 가로 한 줄
 b161a12  feat(panel): containment 직접 부모 맵
@@ -568,26 +724,9 @@ d310653  feat: 형제 겹침·compartment padding
 
 ---
 
-## 커밋 메시지 (미커밋 묶음 예시)
+## 커밋 메시지 (다음 태스크 시)
 
-> **HEAD:** `a3ae12c`  
-> **작업 트리:** 스파인 깊이별 폭·여백 + `work-log.md` (미커밋)
-
-**코드 + 로그 한 번에**
-
-```
-feat(layout): 포함 스파인 깊이별 폭·여백
-
-- 얕은 단계는 넓은 좌우 프레임, 깊은 단계는 여백 축소(계단형 중첩)
-- displaySettings spineShallow/DeepSidePad·BottomPad
-- MxCellFactory가 _spineSidePad·layout width 반영
-```
-
-**work-log만**
-
-```
-docs: work-log에 스파인 깊이별 폭·여백 기록
-```
+> 태스크마다 **별도 커밋**. 예: `fix(mxgraph): resizeParents 후 relativeX 동기화 (T2)`
 
 ---
 
