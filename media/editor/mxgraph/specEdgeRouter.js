@@ -641,6 +641,50 @@
         return yM ? clamp01(parseFloat(yM[1])) : DEFAULT_FRAC;
     }
 
+    function clampLaneXOnBox(laneX, box) {
+        const pad = 10;
+        if (!box || !Number.isFinite(laneX)) {
+            return laneX;
+        }
+        if (box.w <= pad * 2) {
+            return box.x + box.w / 2;
+        }
+        return Math.max(box.x + pad, Math.min(box.x + box.w - pad, laneX));
+    }
+
+    function fracFromLaneX(laneX, box, side) {
+        if (!box) {
+            return DEFAULT_FRAC;
+        }
+        if (side === 'N' || side === 'S') {
+            const x = clampLaneXOnBox(laneX, box);
+            return clamp01((x - box.x) / (box.w || 1));
+        }
+        const y = clampLaneXOnBox(laneX, box);
+        return clamp01((y - box.y) / (box.h || 1));
+    }
+
+    /** 규칙3: 차선 오프셋을 변 위 앵커로 반영 (경로 전체 밀기 금지) */
+    function applyLaneToFracs(
+        srcB,
+        tgtB,
+        exitSide,
+        entrySide,
+        exitFrac,
+        entryFrac,
+        laneDx,
+    ) {
+        if (!laneDx || !srcB || !tgtB) {
+            return { exitFrac, entryFrac };
+        }
+        const ex = pointOnSide(srcB, exitSide, exitFrac);
+        const en = pointOnSide(tgtB, entrySide, entryFrac);
+        return {
+            exitFrac: fracFromLaneX(ex.x + laneDx, srcB, exitSide),
+            entryFrac: fracFromLaneX(en.x + laneDx, tgtB, entrySide),
+        };
+    }
+
     function constraintPoint(side, frac) {
         const f = frac;
         switch (side) {
@@ -794,13 +838,27 @@
         if (!srcB || !tgtB) return;
 
         const sides = resolveSpecSides();
-        const exitFrac = DEFAULT_FRAC;
-        const entryFrac = DEFAULT_FRAC;
+        const st = graph.getModel().getStyle(edgeCell) || '';
+        let exitFrac = parseAnchorFrac(st, 'exit', sides.exitSide);
+        let entryFrac = parseAnchorFrac(st, 'entry', sides.entrySide);
+        const laneDx = Number(edgeData?.specLaneOffsetPx) || 0;
+        const fracs = applyLaneToFracs(
+            srcB,
+            tgtB,
+            sides.exitSide,
+            sides.entrySide,
+            exitFrac,
+            entryFrac,
+            laneDx,
+        );
+        exitFrac = fracs.exitFrac;
+        entryFrac = fracs.entryFrac;
 
         const cfg = getEdgeObstacleCfg();
+        const extraBuf = Number(edgeData?.specObstacleBufferExtra) || 0;
         const obstacleCtx = {
             obstacles: collectSpecObstacles(graph, sourceCell, targetCell),
-            buffer: Number(cfg.obstacleBuffer) || 20,
+            buffer: (Number(cfg.obstacleBuffer) || 20) + extraBuf,
         };
 
         const built = buildSpecPath(

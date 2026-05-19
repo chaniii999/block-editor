@@ -85,6 +85,104 @@
         return absoluteTop(el, byId) + h;
     }
 
+    function elementOnSpineStack(el, byId) {
+        let cur = el;
+        while (cur) {
+            if (cur._compactContainmentSpine || cur._containmentSpineChain) {
+                return true;
+            }
+            const pid = cur.parent;
+            if (!pid || !byId.has(pid)) {
+                break;
+            }
+            cur = byId.get(pid);
+        }
+        return false;
+    }
+
+    function spineStackRootId(el, byId) {
+        let cur = el;
+        let rootId = el?.id;
+        while (cur) {
+            if (cur._compactContainmentSpine || cur._containmentSpineChain) {
+                rootId = cur.id;
+            }
+            const pid = cur.parent;
+            if (!pid || !byId.has(pid)) {
+                break;
+            }
+            cur = byId.get(pid);
+        }
+        return rootId;
+    }
+
+    /** 스파인 spec — clearSpecWaypoints 직전, 평행 차선용 X·buffer 힌트 */
+    function assignSpecSpineLaneOffsets(diagramData) {
+        const connections = Array.isArray(diagramData?.connections)
+            ? diagramData.connections
+            : [];
+        const elements = Array.isArray(diagramData?.elements)
+            ? diagramData.elements
+            : [];
+        if (connections.length === 0) {
+            return;
+        }
+        const byId = indexElements(elements);
+        const laneStep =
+            Number(NS.Editor?.config?.displaySettings?.edgeObstacle?.specSpineLaneStep) ||
+            4;
+        const groups = new Map();
+
+        for (const conn of connections) {
+            if (!isSpecKind(conn.kind || conn.type)) {
+                continue;
+            }
+            const tgt = byId.get(conn.target);
+            if (!tgt || !elementOnSpineStack(tgt, byId)) {
+                delete conn.specLaneOffsetPx;
+                delete conn.specObstacleBufferExtra;
+                continue;
+            }
+            const key = spineStackRootId(tgt, byId);
+            if (!groups.has(key)) {
+                groups.set(key, []);
+            }
+            groups.get(key).push({
+                conn,
+                depth: absoluteTop(tgt, byId),
+                entryY: absoluteBottom(tgt, byId),
+                id: String(conn.target),
+            });
+        }
+
+        for (const [, arr] of groups) {
+            if (arr.length <= 1) {
+                delete arr[0].conn.specLaneOffsetPx;
+                delete arr[0].conn.specObstacleBufferExtra;
+                continue;
+            }
+            const targetIds = new Set(arr.map((x) => String(x.conn.target)));
+            if (targetIds.size <= 1) {
+                for (const x of arr) {
+                    delete x.conn.specLaneOffsetPx;
+                    delete x.conn.specObstacleBufferExtra;
+                }
+                continue;
+            }
+            arr.sort(
+                (a, b) =>
+                    a.depth - b.depth ||
+                    a.entryY - b.entryY ||
+                    a.id.localeCompare(b.id),
+            );
+            const n = arr.length;
+            for (let i = 0; i < n; i++) {
+                arr[i].conn.specLaneOffsetPx = (i - (n - 1) / 2) * laneStep;
+                arr[i].conn.specObstacleBufferExtra = i * laneStep;
+            }
+        }
+    }
+
     /** spec 엣지 waypoint 제거 — 렌더 시 SpecEdgeRouter 가 담당 */
     function clearSpecWaypoints(diagramData) {
         const connections = Array.isArray(diagramData?.connections)
@@ -1377,6 +1475,7 @@
         ensureContainmentParentsEncloseChildren(diagramData);
         fitDiagramToMargins(diagramData, cfg.margin);
         resolveSiblingOverlaps(diagramData, cfg.siblingPad);
+        assignSpecSpineLaneOffsets(diagramData);
         clearSpecWaypoints(diagramData);
         try {
             const spineN = (diagramData.elements || []).filter(

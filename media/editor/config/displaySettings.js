@@ -154,6 +154,8 @@
             maxExtraBends: 8,
             maxAvoidIter: 24,
             maxPathPoints: 22,
+            /** 스파인 spec 평행 차선 간격(px) — bddLayout.assignSpecSpineLaneOffsets */
+            specSpineLaneStep: 6,
         },
 
         // ─── ELK 레이아웃 설정 (elkLayout.js) ────────────────────

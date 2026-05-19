@@ -841,15 +841,95 @@
         return styleStringForAnchor('entry', side, DEFAULT_FRAC);
     }
 
+    function isSpecEdgeCell(edgeCell) {
+        const k = edgeCell?._edgeData?.kind || edgeCell?._edgeData?.type || '';
+        return isSpecializationHierarchyKind(k);
+    }
+
+    function setEdgeAnchor(model, edgeCell, role, side, frac, touched) {
+        let st = model.getStyle(edgeCell) || '';
+        st = replaceAnchorInStyle(st, role, side, frac);
+        model.setStyle(edgeCell, st);
+        touched.add(edgeCell);
+    }
+
+    function isSpecTrunkPairEdge(edgeCell, byPair) {
+        const pk = `${edgeCell.source.id}\x00${edgeCell.target.id}`;
+        const arr = byPair.get(pk) || [];
+        return arr.filter(isSpecEdgeCell).length > 1;
+    }
+
+    /** 규칙1: 동일 부모 S면 분산, 자식 N은 중앙(공유 뼈대) */
+    function spreadSpecEntriesOnTarget(graph, model, edges, touched, byPair) {
+        const list = edges
+            .filter(isSpecEdgeCell)
+            .filter((e) => !isSpecTrunkPairEdge(e, byPair));
+        if (list.length <= 1) {
+            return;
+        }
+        list.sort((a, b) => {
+            const ba = getCellAbsBounds(graph, a.source);
+            const bb = getCellAbsBounds(graph, b.source);
+            return ba.x + ba.w / 2 - (bb.x + bb.w / 2);
+        });
+        const n = list.length;
+        for (let i = 0; i < n; i++) {
+            const frac = (i + 1) / (n + 1);
+            setEdgeAnchor(model, list[i], 'entry', 'S', frac, touched);
+            setEdgeAnchor(model, list[i], 'exit', 'N', DEFAULT_FRAC, touched);
+        }
+    }
+
+    /** 규칙1: 완전 동일 (source,target) 쌍 — 종단 entry만 분산 */
+    function spreadSpecExactPairs(graph, model, byPair, touched) {
+        for (const [, arr] of byPair) {
+            const list = arr.filter(isSpecEdgeCell);
+            if (list.length <= 1) {
+                continue;
+            }
+            list.sort((a, b) => {
+                const ida = String(a._edgeData?.id || a.id || '');
+                const idb = String(b._edgeData?.id || b.id || '');
+                return ida.localeCompare(idb);
+            });
+            const n = list.length;
+            for (let i = 0; i < n; i++) {
+                const frac = (i + 1) / (n + 1);
+                setEdgeAnchor(model, list[i], 'entry', 'S', frac, touched);
+                setEdgeAnchor(model, list[i], 'exit', 'N', DEFAULT_FRAC, touched);
+                if (list[i]._edgeData) {
+                    list[i]._edgeData._specShareTrunk = true;
+                }
+            }
+        }
+    }
+
+    /** 규칙1: 한 자식 → 다중 부모 — exit(N)만 분산 */
+    function spreadSpecExitsOnSource(graph, model, edges, touched) {
+        const list = edges.filter(isSpecEdgeCell);
+        const targets = new Set(list.map((e) => e.target?.id));
+        if (list.length <= 1 || targets.size <= 1) {
+            return;
+        }
+        list.sort((a, b) => {
+            const ba = getCellAbsBounds(graph, a.target);
+            const bb = getCellAbsBounds(graph, b.target);
+            return ba.x + ba.w / 2 - (bb.x + bb.w / 2);
+        });
+        const n = list.length;
+        for (let i = 0; i < n; i++) {
+            const frac = (i + 1) / (n + 1);
+            setEdgeAnchor(model, list[i], 'exit', 'N', frac, touched);
+            setEdgeAnchor(model, list[i], 'entry', 'S', DEFAULT_FRAC, touched);
+        }
+    }
+
     /**
-     * 같은 노드·같은 면: 단일=중앙(0.5), 복수=좌→우(또는 상→하) 분산 후 재라우팅
+     * 같은 노드·같은 면: 단일=중앙(0.5), 복수=좌→우 분산
+     * spec: 규칙1(뼈대 공유·종단 분리) / 비-spec: 기존 exit·entry 분산
      */
     function distributeOverlappingEdges(graph) {
         const specRouter = getSpecRouter();
-        if (specRouter?.distributeSpecEdges) {
-            specRouter.distributeSpecEdges(graph);
-        }
-
         const model = graph.getModel();
         const defaultParent = graph.getDefaultParent();
         const allEdges = [];
@@ -874,11 +954,9 @@
 
         const bySource = new Map();
         const byTarget = new Map();
+        const byPair = new Map();
         for (const e of allEdges) {
             if (!e.source || !e.target) continue;
-            const edgeData = e._edgeData || {};
-            const kind = edgeData.kind || edgeData.type || '';
-            if (isSpecializationHierarchyKind(kind)) continue;
             if (!e.source._isBorderNode) {
                 const k = e.source.id;
                 if (!bySource.has(k)) bySource.set(k, []);
@@ -889,6 +967,9 @@
                 if (!byTarget.has(k)) byTarget.set(k, []);
                 byTarget.get(k).push(e);
             }
+            const pk = `${e.source.id}\x00${e.target.id}`;
+            if (!byPair.has(pk)) byPair.set(pk, []);
+            byPair.get(pk).push(e);
         }
 
         const touched = new Set();
@@ -896,6 +977,9 @@
         function spreadGroup(edges, role) {
             const bySide = {};
             for (const e of edges) {
+                if (isSpecEdgeCell(e)) {
+                    continue;
+                }
                 const src = e.source;
                 const tgt = e.target;
                 const edgeData = e._edgeData || {};
@@ -918,22 +1002,20 @@
                 const n = arr.length;
                 for (let i = 0; i < n; i++) {
                     const frac = n === 1 ? DEFAULT_FRAC : (i + 1) / (n + 1);
-                    const edgeCell = arr[i].e;
-                    let st = model.getStyle(edgeCell) || '';
-                    st = replaceAnchorInStyle(
-                        st,
-                        role,
-                        side,
-                        frac,
-                    );
-                    model.setStyle(edgeCell, st);
-                    touched.add(edgeCell);
+                    setEdgeAnchor(model, arr[i].e, role, side, frac, touched);
                 }
             }
         }
 
         model.beginUpdate();
         try {
+            spreadSpecExactPairs(graph, model, byPair, touched);
+            for (const [, group] of byTarget) {
+                spreadSpecEntriesOnTarget(graph, model, group, touched, byPair);
+            }
+            for (const [, group] of bySource) {
+                spreadSpecExitsOnSource(graph, model, group, touched);
+            }
             for (const [, group] of bySource) {
                 spreadGroup(group, 'exit');
             }
@@ -941,13 +1023,28 @@
                 spreadGroup(group, 'entry');
             }
             for (const edgeCell of touched) {
-                routeEdge(
-                    graph,
-                    edgeCell,
-                    edgeCell._edgeData || {},
-                    edgeCell.source,
-                    edgeCell.target,
-                );
+                const edgeData = edgeCell._edgeData || {};
+                const kind = edgeData.kind || edgeData.type || '';
+                if (
+                    isSpecializationHierarchyKind(kind) &&
+                    specRouter?.routeSpecEdge
+                ) {
+                    specRouter.routeSpecEdge(
+                        graph,
+                        edgeCell,
+                        edgeData,
+                        edgeCell.source,
+                        edgeCell.target,
+                    );
+                } else {
+                    routeEdge(
+                        graph,
+                        edgeCell,
+                        edgeData,
+                        edgeCell.source,
+                        edgeCell.target,
+                    );
+                }
             }
         } finally {
             model.endUpdate();
