@@ -134,6 +134,14 @@
             /** 직접 BDD 자식 1개 — 가로 여백·ELK padding (투박함 방지) */
             singleChildContainmentPad: { top: 8, left: 6, right: 6, bottom: 8 },
             singleChildLabelMinWidth: 72,
+            /**
+             * 단일 체인 스파인 — 깊이별 좌우·하단 여백 (얕을수록 넓은 프레임, 깊을수록 타이트)
+             * depth 0 = 체인 루트 컨테이너, 1 = 가장 안쪽 부모(말단 직전)
+             */
+            spineShallowSidePad: 16,
+            spineDeepSidePad: 2,
+            spineShallowBottomPad: 10,
+            spineDeepBottomPad: 4,
             /** 부모→자식→… 단일 체인 스파인 레이아웃 최소 깊이 (test-4 7단 등) */
             containmentSpineMinChain: 2,
         },

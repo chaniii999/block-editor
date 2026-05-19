@@ -290,7 +290,7 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 **정리:** “폭 계산만 줄이면 된다”가 반만 맞음. mxGraph HTML decor는 **`overflow=fill`로 geometry를 채워야** 하고, 폭은 **stroke 1px 수준만** 줄이며, HR은 **z-order(`orderCells`)** 로 타이틀에 가리지 않게 해야 함.
 
-### 수정 (미커밋 · `MxCompartmentRenderer.js` / `MxCellFactory.js`)
+### 수정 (`c0a28cc` · `MxCompartmentRenderer.js` / `MxCellFactory.js`)
 
 | 파일 | 변경 |
 |------|------|
@@ -321,12 +321,13 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 > 로드맵 1단계부터 — containment·specialization·겹침/이탈 (엣지 작업 전제).
 
-### 수정 (`elkLayout.js`, 미커밋)
+### 수정 (`d63aed4` — `elkLayout.js`, `MxEdgeBuilder.js`)
 
 | 함수 | 역할 |
 |------|------|
 | `applySpecializationAroundParentLayout` | 부모(Vehicle) **아래**에 spec 자식(Car, Truck) 가로 중앙 (UML 서브타입 아래) |
 | `fitDiagramToMargins` | 전체 다이어그램 min(x,y) ≥ 48px (캔버스 이탈 완화) |
+| `getSpecializationAnchorStyles` | spec 엣지 exit/entry를 노드 상대 위치에 맞게 (Car→Vehicle 우회 제거) |
 
 호출 순서: ELK → `applySpecializationVerticalLayout` → **aroundParent** → **fitMargins** → edgeRouting → alignRanks → `resolveSiblingOverlaps`.
 
@@ -357,12 +358,197 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-18 — BDD 후처리·직교 엣지 (Phase 레이아웃 파이프라인)
+
+### 지시·목표
+
+> README 직교 품질·로드맵 — containment/spec 후처리, 엣지 직교·상속 라우팅, BDD `bddLayout` 도입.
+
+### 수정 (`5376fbd`)
+
+| 파일 | 변경 |
+|------|------|
+| `media/editor/layout/bddLayout.js` | **신규** — `applyPostLayout`: spec Y 밴드, spec 자식 대칭, 형제 겹침, `fitDiagramToMargins` |
+| `media/editor/layout/elkLayout.js` | ELK 후 `bdd.applyPostLayout` 호출, spec waypoint 정리·간격 조정 |
+| `media/editor/mxgraph/MxEdgeBuilder.js` | 직교 라우팅·obstacle 회피·spec 앵커 정책 대폭 정리 |
+| `media/editor/mxgraph/edgeOrthogonalPolicy.js` | **신규** — 엣지 스타일·직교 정책 공통화 |
+| `media/editor/mxgraph/specEdgeRouter.js` | **신규** — specialization 엣지 전용 라우터 |
+| `media/editor/config/displaySettings.js` | bdd·elk·spec 간격 설정 |
+| `src/HtmlGenerator.js` | `bddLayout.js`, `edgeOrthogonalPolicy.js` 스크립트 로드 |
+| `p_docs/레이아웃_엣지_총괄규칙.md`, `p_docs/README과제_코드맵과용어집.md` | 규칙·코드맵 문서 |
+
+### 개선 내용
+
+- ELK 배치 **이후** BDD 전용 후처리 파이프라인 분리
+- specialization·containment 시각 규칙을 레이아웃·엣지 모듈로 나눔
+
+---
+
+## 2026-05-18 — BlockModelBuilder containment 부모 맵
+
+### 지시·목표
+
+> 웹뷰로 넘기기 전 containment **직접 부모**를 엣지 순서대로 정확히 반영 (동일 id·다중 부모 대비).
+
+### 수정 (`b161a12`)
+
+| 파일 | 변경 |
+|------|------|
+| `src/panel/BlockModelBuilder.js` | `collectContainmentParentsByTarget`, `buildDirectParentMap`, `containmentCloneId` |
+| `src/panel/containmentPolicy.js` | **신규**(Node) — 단일 자식 판별·unnest 정책(후에 웹뷰와 분리) |
+
+### 개선 내용
+
+- `node.parent`와 synthetic `block-containment:` 엣지가 hierarchy·ELK와 맞게 이어짐
+- test-1 등 compartment만 있는 자식도 **직접 자식 수**에 포함되도록 이후 웹뷰 policy와 연동
+
+---
+
+## 2026-05-18 — BDD 컨테이너 자식 가로 한 줄
+
+### 지시·목표
+
+> ELK가 컨테이너 안 형제를 **세로로 쌓는** 경우, BDD식 **가로 한 줄**로 맞춤 (test-1 PowerTrain 등).
+
+### 수정 (`178619d`)
+
+| 파일 | 변경 |
+|------|------|
+| `media/editor/layout/bddLayout.js` | `packContainmentChildrenHorizontally` |
+| `media/editor/mxgraph/MxCellFactory.js` | 렌더 시 2+ 자식 BDD 컨테이너 가로 팩·중앙 |
+| `media/editor/config/displaySettings.js` | `bdd.containmentRowGap` |
+
+### 개선 내용
+
+- 형제 2개 이상인 BDD 블록만 대상 (단일 자식 체인과 별도)
+
+---
+
+## 2026-05-19 — test-4 단일 부모→자식 체인(스파인) 레이아웃
+
+### 지시·배경
+
+> test-4: `System→…→Primitive` 7단 **부모→자식→자식…** 만 있는 체인.  
+> unnest+화살표로 펼치면 ELK·도메인 배치가 깨짐 → **중첩 유지**, 가독성만 최적화.  
+> 화면이 안 바뀌던 문제는 별도 원인(아래) 해결 후 **개선 확인됨**.
+
+### 방향
+
+| 시도 | 결과 |
+|------|------|
+| 단일 자식 unnest + containment 화살표 | 전역 배치 붕괴 → **비활성** (`applySingleChildContainmentUnnest` no-op) |
+| 컴팩트 스파인 | 체인 통째로 열 너비·세로 스택·가로 중앙 |
+
+### 수정 (`a3ae12c` 등)
+
+| 파일 | 변경 |
+|------|------|
+| `media/editor/model/containmentPolicy.js` | **신규** — structural 자식 수, `markCompactContainmentSpines`, unnest no-op |
+| `media/editor/layout/bddLayout.js` | `collectContainmentSpineChains`, `layoutContainmentSpineChain`, `layoutTightSingleChildContainers`, `layoutSingleChildPair` |
+| `media/editor/config/displaySettings.js` | `singleChildContainmentPad`, `containmentSpineMinChain`, `compactSpine*` |
+| `media/editor/layout/elkLayout.js` | 단일 자식 compound ELK padding 6px, `invokeBddPostLayout`, **alignRanks 뒤** `applyPostLayout` |
+| `media/editor/layout.js` | **`NS.Editor.layout.bdd` 보존** (전체 교체 시 삭제되던 버그 수정) |
+| `media/editor/boot.js` | ELK 전 `markCompactContainmentSpines`; guiData는 스파인 노드 **위치만** 복원 |
+| `media/editor/mxgraph/MxVertexBuilder.js` | tight/spine 부모 아래 자식 **가로 중앙** (`relativeX` 폴백) |
+| `media/editor/mxgraph/MxCellFactory.js` | 단일 자식 spine: 부모 폭 축소·자식 geometry 중앙, resizeParents 스킵 |
+| `src/HtmlGenerator.js` | `containmentPolicy.js` 로드 |
+| `p_docs/커스텀_규칙.md` | 포함관계·직교 규칙 정리 |
+
+### 파이프라인 (정상 경로)
+
+```text
+normalize → deriveHierarchy
+  → markCompactContainmentSpines (boot)
+  → precomputeNodeSizes (spine 라벨 높이 32px)
+  → applyElkLayout → applyPositions
+  → alignRanks → bdd.applyPostLayout
+       → packContainment(형제 2+)
+       → mark + layoutTightSingleChildContainers (스파인)
+  → renderModel → (guiData 위치만)
+```
+
+### 스파인 레이아웃 규칙 (요약 · 초기)
+
+- 체인 루트부터 `getStructuralChildIds`로 **BDD 블록만** 자식 카운트
+- (초기) 체인 전체 **단일 `columnW`** — 후속 **깊이별 폭·여백**은 아래 「스파인 깊이별 폭·여백」 참고
+- test-4: `System→…→Primitive`, `SoftwareSystem→SoftwareSubsystem`, `HardwareSystem→HardwareSubsystem` 등
+
+### 원인 — 스파인이 **전혀** 안 먹던 이유 (확정)
+
+| # | 원인 |
+|---|------|
+| 1 | **`layout.js`가 `ns.Editor.layout = { run, precompute… }`로 통째 교체** → `bddLayout.js`가 등록한 **`NS.Editor.layout.bdd` 소멸** |
+| 2 | `elkLayout`의 `NS.Editor.layout.bdd?.applyPostLayout` → **undefined** → legacy 분기만 실행 |
+| 3 | `boot`의 `markCompactContainmentSpines`도 **스킵** |
+| 4 | (부가) ELK `catch` / ELK 미로드 시 `fallbackGrid`만 하고 후처리 없음 → `invokeBddPostLayout`으로 보완 |
+
+### 원인 — 적용됐는데 **왼쪽 치우침** (확정)
+
+| # | 원인 |
+|---|------|
+| A | ELK 큰 `parent.width` 유지 + `relativeX≈6` (왼쪽만 패딩) |
+| B | `MxCellFactory`가 `parentNodeEarly.width`(ELK값)로 중앙 계산 |
+| C | `MxVertexBuilder`가 `relativeX` 없을 때 절대 `x` 또는 `10` 폴백 |
+
+### 조치 (위 원인 대응)
+
+- `layout.js`에서 `layout.bdd` **병합 보존**
+- spine 부모 width = `child.w + 2×side`만 사용, ELK 폭 무시
+- `unifySingleChildColumnWidths` → `layoutContainmentSpineChain`으로 통합
+- `shiftSubtreeRigid`: `relativeX` 이중 가산 제거(절대 좌표만 이동)
+
+### 확인
+
+- Reload Window + `tests/test-4.json`
+- 콘솔: `[bddLayout] spine chains: …`, `[bddLayout] containment spine 적용: N 컨테이너`
+- `NS.Editor.layout.bdd 없음` 경고 **없어야** 함
+
+---
+
+## 2026-05-19 — 스파인 깊이별 폭·여백 (계단형 중첩)
+
+### 지시
+
+> 중첩이 깊어질수록 하위 컨테이너가 너무 작아 보임.  
+> **얕은 단계**는 자식 박스가 분명히 안쪽에 보이도록 좌우 프레임을 넓히고,  
+> **깊은 단계**는 최소 좌우·하단 여백을 줄여 박스가 줄어들 때 여백도 같이 줄이기.
+
+### 수정 (미커밋)
+
+| 파일 | 변경 |
+|------|------|
+| `media/editor/layout/bddLayout.js` | `getSpineSidePadForDepth`, `getSpineBottomPadForDepth`, `layoutContainmentSpineChain` — 말단→루트로 단계별 폭 산출 |
+| `media/editor/config/displaySettings.js` | `spineShallowSidePad`(16), `spineDeepSidePad`(2), `spineShallowBottomPad`(10), `spineDeepBottomPad`(4) |
+| `media/editor/mxgraph/MxCellFactory.js` | `_spineSidePad` / `_spineBottomPad` / `bddLayout`에서 잡은 `width` 우선 반영 |
+
+### 규칙
+
+- 말단 노드 폭 = 기존 precompute 폭 유지
+- 부모 `i`: `width[i] = max(제목 최소폭, width[i+1] + 2×sidePad(i))`
+- `sidePad(i)`: 루트 쪽 **16px** → 말단 직전 **2px** 선형 보간 (`depthIndex / (containerCount-1)`)
+- `relativeX = (parentW - childW) / 2` — 단계마다 다른 `parentW`·`childW`
+- 노드에 `_spineSidePad`, `_spineBottomPad` 저장 → mx 렌더와 좌표 일치
+
+### 개선 내용
+
+- 루트(`System` 등)는 이전 단일 열보다 **넓은 프레임** → 포함 관계가 한눈에 보임
+- 안쪽(`Primitive` 쪽)은 **여백 2px** 수준으로 타이트 → 깊은 중첩도 답닷하지 않음
+- `displaySettings.bdd.spineShallowSidePad` / `spineDeepSidePad` 로 튜닝 가능
+
+### 확인
+
+- Reload Window + `tests/test-4.json`: 7단 체인이 바깥 넓음 → 안쪽 좁음 계단형인지
+- SW/HW `…→Subsystem` 2단 체인도 루트만 넓은 프레임 적용
+
+---
+
 ## 보류·참고
 
 | 항목 | 상태 |
 |------|------|
 | Phase A postLayout / overlap 파이프라인 | stash에만 존재; 형제 `resolveSiblingOverlaps`로 부분 대체 |
 | `isSpecializationHierarchyKind` 중복 | elkLayout·MxEdgeBuilder — 공통 유틸 미정리 |
+| 커스텀_규칙 「자식 1개 = 화살표」 | 데이터 unnest는 비활성; **스파인 중첩**으로 대체 |
 | 다중 상속·깊은 specialization 체인 | test-4 외 시나리오 추가 검증 여지 |
 
 ---
@@ -371,78 +557,36 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ```text
 브랜치: feature/layout-pipeline
-8500c3f  test: verify block JSON …
-b12bbc6  fix: association edge 미표시
-9fc9ab2  docs: work-log + 스테레오타입 UI
-2c50073  feat: FeatureTyping 푸터
-b32cb22  feat: AttributeDefinition compartment
-938630f  feat: 헤더 verticalAlign top
-e5114d9  feat: specialization ELK 상하 계층
-437378f  feat: JSON/media 자동 리프레시
-d310653  feat: 형제 겹침 해소·compartment padding 정합 (HEAD)
+a3ae12c  feat(layout): BDD 포함 관계 및 레이아웃 개선 (스파인·containmentPolicy·layout.bdd 보존)
+178619d  feat(layout): BDD 자식 가로 한 줄
+b161a12  feat(panel): containment 직접 부모 맵
+5376fbd  feat(layout): bddLayout·직교 엣지·specEdgeRouter
+d63aed4  feat(layout): test-1 specialization 배치·엣지 앵커
+d310653  feat: 형제 겹침·compartment padding
+… (이하 b12bbc6~8500c3f 동일)
 ```
 
 ---
 
-## 커밋 메시지 (작업 완료·스테이징 시)
+## 커밋 메시지 (미커밋 묶음 예시)
 
-> **커밋 시점:** F5 `tests/test-1.json`에서 아래 확인 후.  
-> **포함 파일(현재 미커밋 묶음):** `elkLayout.js`, `MxEdgeBuilder.js`, `p_docs/03_테스트_로드맵.md`, `work-log.md`  
-> compartment·푸터(`MxCompartmentRenderer.js` 등)는 **별도 커밋**이면 아래 「분리안」 참고.
+> **HEAD:** `a3ae12c`  
+> **작업 트리:** 스파인 깊이별 폭·여백 + `work-log.md` (미커밋)
 
-### 한 번에 커밋 (권장)
-
-```
-feat(layout): test-1 specialization 배치·엣지 앵커 정합
-
-- elkLayout: spec 자식을 부모 정의 아래 가로 정렬(UML), fitDiagramToMargins
-- MxEdgeBuilder: specialization exit/entry를 상대 위치에 맞게 동적 앵커
-- Car→Vehicle 우회 경로·자식이 부모 위에 오던 배치 문제 해소
-- 로드맵 Phase 1-A 체크·work-log 원인 기록
-```
-
-### 분리 커밋 (리뷰 나누고 싶을 때)
-
-**1) 레이아웃**
+**코드 + 로그 한 번에**
 
 ```
-feat(layout): test-1 specialization 자식을 부모 아래에 배치
+feat(layout): 포함 스파인 깊이별 폭·여백
 
-- applySpecializationAroundParentLayout: 서브타입만 부모 박스 하단 가로 정렬
-- fitDiagramToMargins: 다이어그램 min(x,y) 여백
+- 얕은 단계는 넓은 좌우 프레임, 깊은 단계는 여백 축소(계단형 중첩)
+- displaySettings spineShallow/DeepSidePad·BottomPad
+- MxCellFactory가 _spineSidePad·layout width 반영
 ```
 
-**2) 엣지**
+**work-log만**
 
 ```
-fix(mxgraph): specialization 앵커를 노드 상대 위치에 맞게
-
-- getSpecializationAnchorStyles: 위/아래·좌우에 따라 exitY·entryY 선택
-- 고정 top→bottom 앵커로 인한 Car→Vehicle 우회 제거
-```
-
-**3) compartment·푸터** (해당 diff 스테이징할 때만)
-
-```
-fix(mxgraph): compartment·푸터 구분선 박스 안쪽 전폭
-
-- getVertexDecorBounds, dividerLineHtml, overflow=fill
-- 푸터 단일 하단 슬롯, resize 후 syncAllInteriorDecorWidths
-```
-
-### 스테이징 예시
-
-```bash
-git add media/editor/layout/elkLayout.js media/editor/mxgraph/MxEdgeBuilder.js p_docs/03_테스트_로드맵.md work-log.md
-git commit -m "$(cat <<'EOF'
-feat(layout): test-1 specialization 배치·엣지 앵커 정합
-
-- elkLayout: spec 자식을 부모 정의 아래 가로 정렬(UML), fitDiagramToMargins
-- MxEdgeBuilder: specialization exit/entry를 상대 위치에 맞게 동적 앵커
-- Car→Vehicle 우회 경로·자식이 부모 위에 오던 배치 문제 해소
-- 로드맵 Phase 1-A 체크·work-log 원인 기록
-EOF
-)"
+docs: work-log에 스파인 깊이별 폭·여백 기록
 ```
 
 ---

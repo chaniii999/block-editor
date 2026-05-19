@@ -162,16 +162,22 @@
                         const cw = Number(childNode.width) || Number(cGeo.width) || 120;
                         const ch = Number(childNode.height) || Number(cGeo.height) || 60;
                         const side =
+                            Number(parentNodeEarly._spineSidePad) ||
                             Number(spinePad.left) ||
                             Number(DS?.bdd?.singleChildContainmentPad?.left) ||
                             6;
                         const bottom =
+                            Number(parentNodeEarly._spineBottomPad) ||
                             Number(spinePad.bottom) ||
                             Number(DS?.bdd?.singleChildContainmentPad?.bottom) ||
                             8;
                         const name = String(parentNodeEarly.name || parentNodeEarly.id || '');
                         const titleW = Math.max(72, name.length * 7 + 20);
-                        const parentW = Math.max(cw + side * 2, titleW);
+                        const layoutW = Number(parentNodeEarly.width);
+                        const parentW =
+                            layoutW > 0
+                                ? layoutW
+                                : Math.max(cw + side * 2, titleW);
                         const relX = Math.max(0, (parentW - cw) / 2);
                         const newChild = cGeo.clone();
                         newChild.x = relX;

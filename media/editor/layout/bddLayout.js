@@ -232,7 +232,35 @@
             singleRight: Number(sc.right) || 6,
             singleBottom: Number(sc.bottom) || 8,
             labelMinW: Number(bdd.singleChildLabelMinWidth) || 72,
+            spineShallowSide: Number(bdd.spineShallowSidePad) || 16,
+            spineDeepSide: Number(bdd.spineDeepSidePad) || 2,
+            spineShallowBottom: Number(bdd.spineShallowBottomPad) || 10,
+            spineDeepBottom: Number(bdd.spineDeepBottomPad) || 4,
         };
+    }
+
+    /** 스파인 체인 컨테이너 깊이 비율: 0=루트 부모, 1=말단 직전 부모 */
+    function spineContainerDepthT(depthIndex, containerCount) {
+        if (containerCount <= 1) {
+            return 0;
+        }
+        return depthIndex / (containerCount - 1);
+    }
+
+    function lerpSpinePad(shallow, deep, t) {
+        return Math.round(shallow + (deep - shallow) * Math.min(1, Math.max(0, t)));
+    }
+
+    function getSpineSidePadForDepth(depthIndex, chainLength, cfg) {
+        const containerCount = Math.max(1, chainLength - 1);
+        const t = spineContainerDepthT(depthIndex, containerCount);
+        return lerpSpinePad(cfg.spineShallowSide, cfg.spineDeepSide, t);
+    }
+
+    function getSpineBottomPadForDepth(depthIndex, chainLength, cfg) {
+        const containerCount = Math.max(1, chainLength - 1);
+        const t = spineContainerDepthT(depthIndex, containerCount);
+        return lerpSpinePad(cfg.spineShallowBottom, cfg.spineDeepBottom, t);
     }
 
     function estimateTitleMinWidth(node, minW) {
@@ -421,38 +449,39 @@
             return;
         }
 
-        const sideL = cfg.singleLeft;
-        const sideR = cfg.singleRight;
         const topPad = cfg.labelTop;
-        const bottomPad = cfg.singleBottom;
-        const leaf = chain[chain.length - 1];
+        const n = chain.length;
+        const leaf = chain[n - 1];
         const leafW = Number(leaf.width) || 120;
+        const widths = new Array(n);
 
-        let columnW = cfg.labelMinW;
-        for (let i = 0; i < chain.length - 1; i++) {
-            columnW = Math.max(
-                columnW,
-                estimateTitleMinWidth(chain[i], cfg.labelMinW),
-            );
+        widths[n - 1] = leafW;
+
+        for (let i = n - 2; i >= 0; i--) {
+            const sidePad = getSpineSidePadForDepth(i, n, cfg);
+            const titleMin = estimateTitleMinWidth(chain[i], cfg.labelMinW);
+            widths[i] = Math.max(titleMin, widths[i + 1] + sidePad * 2);
+            chain[i]._spineSidePad = sidePad;
+            chain[i]._spineBottomPad = getSpineBottomPadForDepth(i, n, cfg);
         }
-        columnW = Math.max(columnW, leafW + sideL + sideR);
 
-        for (let i = 0; i < chain.length - 1; i++) {
+        for (let i = 0; i < n - 1; i++) {
             const node = chain[i];
-            node.width = columnW;
+            node.width = widths[i];
             node._containmentSpineChain = true;
             node._tightSingleChildContainer = true;
             node._compactContainmentSpine = true;
             node._precomputedPaddingTop = topPad;
         }
-        for (let i = 1; i < chain.length - 1; i++) {
-            chain[i].width = columnW;
+        for (let i = 1; i < n - 1; i++) {
+            chain[i].width = widths[i];
         }
 
-        for (let i = chain.length - 2; i >= 0; i--) {
+        for (let i = n - 2; i >= 0; i--) {
             const parent = chain[i];
             const child = chain[i + 1];
             const ch = Number(child.height) || 60;
+            const bottomPad = Number(parent._spineBottomPad) || cfg.singleBottom;
             parent.height = topPad + ch + bottomPad;
         }
 
@@ -466,11 +495,12 @@
             root.relativeY = rootY;
         }
 
-        for (let i = 0; i < chain.length - 1; i++) {
+        for (let i = 0; i < n - 1; i++) {
             const parent = chain[i];
             const child = chain[i + 1];
-            const cw = Number(child.width) || leafW;
-            const relX = Math.max(0, (columnW - cw) / 2);
+            const parentW = widths[i];
+            const childW = widths[i + 1];
+            const relX = Math.max(0, (parentW - childW) / 2);
             const relY = topPad;
             const px = Number(parent.x) || 0;
             const py = Number(parent.y) || 0;
