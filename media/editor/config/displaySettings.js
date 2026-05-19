@@ -149,11 +149,11 @@
         // ─── mx 직교 엣지 장애물 회피 (edgeObstacleUtil.js · MxEdgeBuilder) ─
         edgeObstacle: {
             /** 노드 bbox 팽창(px) — README 엣지-노드 중첩 없음 */
-            obstacleBuffer: 12,
+            obstacleBuffer: 20,
             /** 우회 채택 시 원 경로 대비 허용 추가 꺾임 수 */
-            maxExtraBends: 4,
-            maxAvoidIter: 12,
-            maxPathPoints: 16,
+            maxExtraBends: 8,
+            maxAvoidIter: 24,
+            maxPathPoints: 22,
         },
 
         // ─── ELK 레이아웃 설정 (elkLayout.js) ────────────────────

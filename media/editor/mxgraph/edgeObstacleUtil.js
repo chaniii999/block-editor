@@ -1,7 +1,6 @@
 /* ********************************************************************************
  * Copyright: SELab.AI (c) 2026
- * 직교 경로(H/V 세그먼트)와 노드 bbox 교차 검사·보수적 우회
- * README: 엣지-노드 중첩 없음 — 기존 SVG renderUtils 로직을 mx 경로에 안전 적용
+ * 직교 경로(H/V) — 노드 bbox 이격·교차 최소 (README: 엣지-노드 중첩 없음)
  * ********************************************************************************/
 (function () {
     'use strict';
@@ -91,7 +90,6 @@
         return null;
     }
 
-    /** 한 세그먼트를 장애물 한 면을 따라 우회 (직교 유지) */
     function detourAroundObstacle(a, b, hit, buffer) {
         const buf = Number(buffer) || 12;
         if (a.y === b.y) {
@@ -121,16 +119,11 @@
         return [a, b];
     }
 
-    /**
-     * @param {Array<{x:number,y:number}>} path
-     * @param {Array<{x,y,w,h}>} obstacles
-     * @param {{ buffer?: number, maxIter?: number, maxPoints?: number }} options
-     */
     function avoidObstacles(path, obstacles, options) {
         const opts = options || {};
         const buffer = Number(opts.buffer) || 12;
-        const maxIter = Number(opts.maxIter) || 12;
-        const maxPoints = Number(opts.maxPoints) || 16;
+        const maxIter = Number(opts.maxIter) || 20;
+        const maxPoints = Number(opts.maxPoints) || 20;
         if (!path || path.length < 2 || !obstacles || obstacles.length === 0) {
             return path;
         }
@@ -186,37 +179,443 @@
         return current;
     }
 
+    /** 수평 세그먼트가 장애물과 겹치지 않도록 Y 한 칸 위/아래로 밀기 */
+    function clearHorizontalY(y, xMin, xMax, obstacles, buffer) {
+        const a = { x: xMin, y };
+        const b = { x: xMax, y };
+        if (countSegmentHits(a, b, obstacles, buffer) === 0) {
+            return y;
+        }
+        let yAbove = y;
+        let yBelow = y;
+        for (const o of obstacles) {
+            const r = inflateRect(o, buffer);
+            if (!segmentIntersectsRect(xMin, y, xMax, y, r)) {
+                continue;
+            }
+            yAbove = Math.min(yAbove, o.y - buffer);
+            yBelow = Math.max(yBelow, o.y + o.h + buffer);
+        }
+        const hAbove = countSegmentHits(
+            { x: xMin, y: yAbove },
+            { x: xMax, y: yAbove },
+            obstacles,
+            buffer,
+        );
+        const hBelow = countSegmentHits(
+            { x: xMin, y: yBelow },
+            { x: xMax, y: yBelow },
+            obstacles,
+            buffer,
+        );
+        if (hAbove === 0) {
+            return yAbove;
+        }
+        if (hBelow === 0) {
+            return yBelow;
+        }
+        return hAbove <= hBelow ? yAbove : yBelow;
+    }
+
+    function clearVerticalX(x, yMin, yMax, obstacles, buffer) {
+        const a = { x, y: yMin };
+        const b = { x, y: yMax };
+        if (countSegmentHits(a, b, obstacles, buffer) === 0) {
+            return x;
+        }
+        let xLeft = x;
+        let xRight = x;
+        for (const o of obstacles) {
+            const r = inflateRect(o, buffer);
+            if (!segmentIntersectsRect(x, yMin, x, yMax, r)) {
+                continue;
+            }
+            xLeft = Math.min(xLeft, o.x - buffer);
+            xRight = Math.max(xRight, o.x + o.w + buffer);
+        }
+        const hLeft = countSegmentHits(
+            { x: xLeft, y: yMin },
+            { x: xLeft, y: yMax },
+            obstacles,
+            buffer,
+        );
+        const hRight = countSegmentHits(
+            { x: xRight, y: yMin },
+            { x: xRight, y: yMax },
+            obstacles,
+            buffer,
+        );
+        if (hLeft === 0) {
+            return xLeft;
+        }
+        if (hRight === 0) {
+            return xRight;
+        }
+        return hLeft <= hRight ? xLeft : xRight;
+    }
+
     /**
-     * 교차가 줄어들고 꺾임이 과도하지 않을 때만 우회 경로 채택
+     * 상속(N→S): 가로 통로 Y는 부모 하단~자식 상단 사이만 (위로 튀어 올라가지 않음)
      */
-    function maybeRefinePath(path, obstacles, options) {
+    function computeHorizontalChannelYBand(
+        exitSide,
+        entrySide,
+        srcB,
+        tgtB,
+        approachPad,
+    ) {
+        const pad = Number(approachPad) || 16;
+        const ALIGN_EPS = 2;
+        if (exitSide === 'N' && entrySide === 'S') {
+            const pb = tgtB.y + tgtB.h;
+            const ct = srcB.y;
+            if (ct > pb + ALIGN_EPS) {
+                return {
+                    minY: pb + pad,
+                    maxY: ct - pad,
+                    prefer: (pb + ct) / 2,
+                };
+            }
+            return {
+                minY: pb + pad,
+                maxY: pb + pad + 120,
+                prefer: pb + pad,
+            };
+        }
+        if (exitSide === 'S' && entrySide === 'N') {
+            const pt = tgtB.y;
+            const cb = srcB.y + srcB.h;
+            if (pt > cb + ALIGN_EPS) {
+                return {
+                    minY: cb + pad,
+                    maxY: pt - pad,
+                    prefer: (cb + pt) / 2,
+                };
+            }
+            return {
+                minY: pt - 120,
+                maxY: pt - pad,
+                prefer: pt - pad,
+            };
+        }
+        return null;
+    }
+
+    function clampToBand(v, band) {
+        if (!band || !Number.isFinite(v)) {
+            return v;
+        }
+        return Math.max(band.minY, Math.min(band.maxY, v));
+    }
+
+    /**
+     * spec / 직교 채널 Y 후보 (갭 중앙·접근 패드 — 통로 밴드 밖 후보 제외)
+     */
+    function verticalChannelYCandidates(
+        exitSide,
+        entrySide,
+        srcB,
+        tgtB,
+        approachPad,
+    ) {
+        const pad = Number(approachPad) || 16;
+        const ALIGN_EPS = 2;
+        const out = [];
+
+        function add(y) {
+            if (Number.isFinite(y)) {
+                out.push(y);
+            }
+        }
+
+        if (exitSide === 'N' && entrySide === 'S') {
+            const pb = tgtB.y + tgtB.h;
+            const ct = srcB.y;
+            if (ct > pb + ALIGN_EPS) {
+                add((pb + ct) / 2);
+                add(pb + pad);
+                add(ct - pad);
+            } else {
+                add(pb + pad);
+            }
+        } else if (exitSide === 'S' && entrySide === 'N') {
+            const pt = tgtB.y;
+            const cb = srcB.y + srcB.h;
+            if (pt > cb + ALIGN_EPS) {
+                add((cb + pt) / 2);
+            }
+            add(pt - pad);
+            add(cb + pad);
+        } else {
+            const pb = tgtB.y + tgtB.h;
+            const ct = srcB.y;
+            if (ct > pb + ALIGN_EPS) {
+                add((pb + ct) / 2);
+            }
+            add(pb + pad);
+            add(ct - pad);
+        }
+        return out;
+    }
+
+    function horizontalChannelXCandidates(
+        exitSide,
+        entrySide,
+        srcB,
+        tgtB,
+        approachPad,
+    ) {
+        const pad = Number(approachPad) || 16;
+        const ALIGN_EPS = 2;
+        const out = [];
+
+        function add(x) {
+            if (Number.isFinite(x)) {
+                out.push(x);
+            }
+        }
+
+        if (exitSide === 'W' && entrySide === 'E') {
+            const pr = tgtB.x + tgtB.w;
+            const cl = srcB.x;
+            if (cl > pr + ALIGN_EPS) {
+                add((pr + cl) / 2);
+            }
+            add(pr + pad);
+            add(cl - pad);
+        } else if (exitSide === 'E' && entrySide === 'W') {
+            const pl = tgtB.x;
+            const cr = srcB.x + srcB.w;
+            if (pl > cr + ALIGN_EPS) {
+                add((cr + pl) / 2);
+            }
+            add(pl - pad);
+            add(cr + pad);
+        } else {
+            add(tgtB.x + tgtB.w / 2);
+            add(srcB.x + srcB.w / 2);
+        }
+        return out;
+    }
+
+    /**
+     * 가로 통로 Y — 장애물 교차 0 우선, 없으면 최소 교차
+     */
+    function pickHorizontalChannelY(
+        candidates,
+        x1,
+        x2,
+        obstacles,
+        buffer,
+        preferY,
+        yBand,
+    ) {
+        const prefer = Number.isFinite(preferY) ? preferY : candidates[0];
+        if (!obstacles || obstacles.length === 0) {
+            return clampToBand(prefer, yBand);
+        }
+        const buf = Number(buffer) || 20;
+        const xMin = Math.min(x1, x2);
+        const xMax = Math.max(x1, x2);
+
+        function bandPenalty(y) {
+            if (!yBand || !Number.isFinite(y)) {
+                return 0;
+            }
+            if (y < yBand.minY) {
+                return (yBand.minY - y) * 8000;
+            }
+            if (y > yBand.maxY) {
+                return (y - yBand.maxY) * 8000;
+            }
+            return 0;
+        }
+
+        function collectExpanded(allowOutsideBand) {
+            const expanded = new Set();
+            for (const y0 of candidates || []) {
+                expanded.add(y0);
+                const cleared = clearHorizontalY(
+                    y0,
+                    xMin,
+                    xMax,
+                    obstacles,
+                    buf,
+                );
+                expanded.add(cleared);
+            }
+            for (const o of obstacles) {
+                const r = inflateRect(o, buf);
+                if (r.x + r.w < xMin || r.x > xMax) {
+                    continue;
+                }
+                const above = r.y - buf - 1;
+                const below = r.y + r.h + buf + 1;
+                if (
+                    allowOutsideBand ||
+                    !yBand ||
+                    (above >= yBand.minY && above <= yBand.maxY)
+                ) {
+                    expanded.add(above);
+                }
+                if (
+                    allowOutsideBand ||
+                    !yBand ||
+                    (below >= yBand.minY && below <= yBand.maxY)
+                ) {
+                    expanded.add(below);
+                }
+            }
+            if (yBand) {
+                expanded.add(yBand.minY);
+                expanded.add(yBand.maxY);
+                expanded.add(yBand.prefer);
+            }
+            return expanded;
+        }
+
+        function pickFrom(expanded) {
+            let bestY = prefer;
+            let bestScore = Infinity;
+            for (const y of expanded) {
+                if (!Number.isFinite(y)) {
+                    continue;
+                }
+                const hits = countSegmentHits(
+                    { x: xMin, y },
+                    { x: xMax, y },
+                    obstacles,
+                    buf,
+                );
+                const dist = Number.isFinite(preferY)
+                    ? Math.abs(y - preferY)
+                    : 0;
+                const score = hits * 100000 + bandPenalty(y) + dist;
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestY = y;
+                }
+            }
+            return clampToBand(bestY, yBand);
+        }
+
+        let best = pickFrom(collectExpanded(false));
+        const hitsInBand = countSegmentHits(
+            { x: xMin, y: best },
+            { x: xMax, y: best },
+            obstacles,
+            buf,
+        );
+        if (hitsInBand > 0) {
+            best = pickFrom(collectExpanded(true));
+        }
+        return best;
+    }
+
+    function pickVerticalChannelX(
+        candidates,
+        y1,
+        y2,
+        obstacles,
+        buffer,
+        preferX,
+    ) {
+        if (!obstacles || obstacles.length === 0) {
+            return Number.isFinite(preferX) ? preferX : candidates[0];
+        }
+        const buf = Number(buffer) || 20;
+        const yMin = Math.min(y1, y2);
+        const yMax = Math.max(y1, y2);
+        const expanded = new Set();
+
+        for (const x0 of candidates || []) {
+            expanded.add(x0);
+            expanded.add(clearVerticalX(x0, yMin, yMax, obstacles, buf));
+        }
+        for (const o of obstacles) {
+            const r = inflateRect(o, buf);
+            if (r.y + r.h < yMin || r.y > yMax) {
+                continue;
+            }
+            expanded.add(r.x - buf - 1);
+            expanded.add(r.x + r.w + buf + 1);
+        }
+
+        let bestX = Number.isFinite(preferX) ? preferX : candidates[0];
+        let bestScore = Infinity;
+        for (const x of expanded) {
+            if (!Number.isFinite(x)) {
+                continue;
+            }
+            const hits = countSegmentHits(
+                { x, y: yMin },
+                { x, y: yMax },
+                obstacles,
+                buf,
+            );
+            const dist = Number.isFinite(preferX)
+                ? Math.abs(x - preferX)
+                : 0;
+            const score = hits * 100000 + dist;
+            if (score < bestScore) {
+                bestScore = score;
+                bestX = x;
+            }
+        }
+        return bestX;
+    }
+
+    /**
+     * 노드 관통 최소화 우선 — 교차 0 될 때까지 우회, 꺾임은 maxExtraBends까지 허용
+     */
+    function refineOrthogonalPath(path, obstacles, options) {
         if (!path || path.length < 2) {
             return path;
         }
         const opts = options || {};
-        const buffer = Number(opts.buffer) || 12;
-        const maxExtra = Number(opts.maxExtraBends) || 4;
-        const before = countPathHits(path, obstacles, buffer);
-        if (before === 0) {
-            return path;
+        let buffer = Number(opts.buffer) || 20;
+        const maxExtra = Number(opts.maxExtraBends) ?? 8;
+        const baseLen = path.length;
+
+        let best = dedupePoints(path.slice());
+        let bestHits = countPathHits(best, obstacles, buffer);
+
+        if (bestHits === 0) {
+            return best;
         }
-        const refined = avoidObstacles(path, obstacles, opts);
-        const after = countPathHits(refined, obstacles, buffer);
-        if (after >= before) {
-            return path;
+
+        const tryRefine = (buf, maxIter, maxPts) => {
+            const refined = avoidObstacles(best, obstacles, {
+                buffer: buf,
+                maxIter: maxIter || 24,
+                maxPoints: maxPts || 22,
+            });
+            const hits = countPathHits(refined, obstacles, buf);
+            if (
+                hits < bestHits &&
+                refined.length <= baseLen + maxExtra
+            ) {
+                best = dedupePoints(refined);
+                bestHits = hits;
+            }
+        };
+
+        tryRefine(buffer, opts.maxIter, opts.maxPoints);
+        if (bestHits > 0) {
+            tryRefine(buffer + 8, 28, 24);
         }
-        if (refined.length > path.length + maxExtra) {
-            return path;
+        if (bestHits > 0) {
+            tryRefine(buffer + 16, 32, 26);
         }
-        return dedupePoints(refined);
+
+        return best;
     }
 
-    /**
-     * 그래프 vertex 절대 bbox 수집 (src/tgt·decor 제외)
-     * @param {mxGraph} graph
-     * @param {string[]} excludeCellIds
-     * @param {(cell: mxCell) => {x,y,w,h}|null} getAbsBounds
-     */
+    /** @deprecated — refineOrthogonalPath 사용 */
+    function maybeRefinePath(path, obstacles, options) {
+        return refineOrthogonalPath(path, obstacles, options);
+    }
+
     function collectVertexObstacles(graph, excludeCellIds, getAbsBounds) {
         const obstacles = [];
         if (!graph || typeof getAbsBounds !== 'function') {
@@ -268,7 +667,13 @@
         segmentIntersectsRect,
         countPathHits,
         avoidObstacles,
+        refineOrthogonalPath,
         maybeRefinePath,
+        computeHorizontalChannelYBand,
+        verticalChannelYCandidates,
+        horizontalChannelXCandidates,
+        pickHorizontalChannelY,
+        pickVerticalChannelX,
         collectVertexObstacles,
     };
 })();

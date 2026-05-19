@@ -65,6 +65,26 @@
         node.relativeY = (Number(node.y) || 0) - (Number(p.y) || 0);
     }
 
+    /** containment 자식: relativeY 체인 또는 절대 y */
+    function absoluteTop(el, byId) {
+        if (!el) {
+            return 0;
+        }
+        if (!el.parent || !byId.has(el.parent)) {
+            return Number(el.y) || 0;
+        }
+        const ry = Number(el.relativeY);
+        if (Number.isFinite(ry)) {
+            return absoluteTop(byId.get(el.parent), byId) + ry;
+        }
+        return Number(el.y) || 0;
+    }
+
+    function absoluteBottom(el, byId) {
+        const h = Number(el.height) || 60;
+        return absoluteTop(el, byId) + h;
+    }
+
     /** spec 엣지 waypoint 제거 — 렌더 시 SpecEdgeRouter 가 담당 */
     function clearSpecWaypoints(diagramData) {
         const connections = Array.isArray(diagramData?.connections)
@@ -312,7 +332,7 @@
                 if (!child || !parent || child.hidden || parent.hidden) {
                     continue;
                 }
-                const childTop = Number(child.y) || 0;
+                const childTop = absoluteTop(child, byId);
                 const parentH = Number(parent.height) || 60;
                 const needY = childTop - gap - parentH;
                 const pid = parent.id;
@@ -328,7 +348,7 @@
                 if (!parent) {
                     continue;
                 }
-                const py = Number(parent.y) || 0;
+                const py = absoluteTop(parent, byId);
                 if (py > needY + 1) {
                     shiftSpecAncestorsUp(parentId, needY - py, new Set());
                     moved = true;
@@ -344,9 +364,9 @@
                 if (!child || !parent || child.hidden || parent.hidden) {
                     continue;
                 }
-                const childTop = Number(child.y) || 0;
+                const childTop = absoluteTop(child, byId);
                 const parentH = Number(parent.height) || 60;
-                const minChildY = (Number(parent.y) || 0) + parentH + gap;
+                const minChildY = absoluteBottom(parent, byId) + gap;
                 if (childTop < minChildY - 1) {
                     shiftSpecChildDown(
                         conn.source,

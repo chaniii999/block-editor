@@ -188,6 +188,143 @@
         return clamp01((pt.y - bounds.y) / (bounds.h || 1));
     }
 
+    function getEdgeObstacleUtil() {
+        return ns.MxGraph.edgeObstacle;
+    }
+
+    function getEdgeObstacleCfg() {
+        return ns.Editor?.config?.displaySettings?.edgeObstacle || {};
+    }
+
+    function collectMxAncestorNodeIds(graph, cell) {
+        const ids = [];
+        if (!cell) {
+            return ids;
+        }
+        const model = graph.getModel();
+        const dp = graph.getDefaultParent();
+        let p = cell.parent;
+        while (p && p !== dp && p !== model.getRoot()) {
+            const nid = p._nodeData?.id || p.getId?.();
+            if (nid) {
+                ids.push(String(nid));
+            }
+            p = p.parent;
+        }
+        return ids;
+    }
+
+    function collectSpecObstacles(graph, sourceCell, targetCell) {
+        const util = getEdgeObstacleUtil();
+        if (!util?.collectVertexObstacles) {
+            return [];
+        }
+        const sid = String(
+            sourceCell?._nodeData?.id || sourceCell?.getId?.() || '',
+        );
+        const tid = String(
+            targetCell?._nodeData?.id || targetCell?.getId?.() || '',
+        );
+        const exclude = new Set([sid, tid]);
+        for (const id of collectMxAncestorNodeIds(graph, sourceCell)) {
+            exclude.add(id);
+        }
+        for (const id of collectMxAncestorNodeIds(graph, targetCell)) {
+            exclude.add(id);
+        }
+        return util.collectVertexObstacles(graph, [...exclude], (c) =>
+            cellBounds(graph, c),
+        );
+    }
+
+    function resolveVerticalChannelY(
+        exitSide,
+        entrySide,
+        srcB,
+        tgtB,
+        exitPt,
+        entryPt,
+        obstacleCtx,
+    ) {
+        const defaultY = verticalChannelY(exitSide, entrySide, srcB, tgtB);
+        const util = getEdgeObstacleUtil();
+        if (
+            !obstacleCtx?.obstacles?.length ||
+            !util?.pickHorizontalChannelY ||
+            !exitPt ||
+            !entryPt
+        ) {
+            return defaultY;
+        }
+        const buf = Number(obstacleCtx.buffer) || 20;
+        const candidates = util.verticalChannelYCandidates
+            ? util.verticalChannelYCandidates(
+                  exitSide,
+                  entrySide,
+                  srcB,
+                  tgtB,
+                  APPROACH_PAD,
+              )
+            : [defaultY];
+        const yBand = util.computeHorizontalChannelYBand
+            ? util.computeHorizontalChannelYBand(
+                  exitSide,
+                  entrySide,
+                  srcB,
+                  tgtB,
+                  APPROACH_PAD,
+              )
+            : null;
+        return util.pickHorizontalChannelY(
+            candidates,
+            exitPt.x,
+            entryPt.x,
+            obstacleCtx.obstacles,
+            buf,
+            defaultY,
+            yBand,
+        );
+    }
+
+    function resolveHorizontalChannelX(
+        exitSide,
+        entrySide,
+        srcB,
+        tgtB,
+        exitPt,
+        entryPt,
+        obstacleCtx,
+    ) {
+        const defaultX = horizontalChannelX(exitSide, entrySide, srcB, tgtB);
+        const util = getEdgeObstacleUtil();
+        if (
+            !obstacleCtx?.obstacles?.length ||
+            !util?.pickVerticalChannelX ||
+            !exitPt ||
+            !entryPt
+        ) {
+            return defaultX;
+        }
+        const buf = Number(obstacleCtx.buffer) || 20;
+        const candidates = util.horizontalChannelXCandidates
+            ? util.horizontalChannelXCandidates(
+                  exitSide,
+                  entrySide,
+                  srcB,
+                  tgtB,
+                  APPROACH_PAD,
+              )
+            : [defaultX];
+        return util.pickVerticalChannelX(
+            candidates,
+            exitPt.y,
+            entryPt.y,
+            obstacleCtx.obstacles,
+            buf,
+            defaultX,
+        );
+    }
+
     function verticalChannelY(exitSide, entrySide, srcB, tgtB) {
         if (exitSide === 'N' && entrySide === 'S') {
             const pb = tgtB.y + tgtB.h;
@@ -359,7 +496,15 @@
         };
     }
 
-    function buildSpecPath(srcB, tgtB, exitSide, entrySide, exitFrac, entryFrac) {
+    function buildSpecPath(
+        srcB,
+        tgtB,
+        exitSide,
+        entrySide,
+        exitFrac,
+        entryFrac,
+        obstacleCtx,
+    ) {
         const exitPt = pointOnSide(srcB, exitSide, exitFrac);
         const entryPt = pointOnSide(tgtB, entrySide, entryFrac);
         const exitVert = exitSide === 'N' || exitSide === 'S';
@@ -369,7 +514,15 @@
             if (near(exitPt.x, entryPt.x)) {
                 return { path: [exitPt, entryPt], exitSide, entrySide };
             }
-            const yCh = verticalChannelY(exitSide, entrySide, srcB, tgtB);
+            const yCh = resolveVerticalChannelY(
+                exitSide,
+                entrySide,
+                srcB,
+                tgtB,
+                exitPt,
+                entryPt,
+                obstacleCtx,
+            );
             return {
                 path: [
                     exitPt,
@@ -385,7 +538,15 @@
             if (near(exitPt.y, entryPt.y)) {
                 return { path: [exitPt, entryPt], exitSide, entrySide };
             }
-            const xCh = horizontalChannelX(exitSide, entrySide, srcB, tgtB);
+            const xCh = resolveHorizontalChannelX(
+                exitSide,
+                entrySide,
+                srcB,
+                tgtB,
+                exitPt,
+                entryPt,
+                obstacleCtx,
+            );
             return {
                 path: [
                     exitPt,
@@ -398,7 +559,15 @@
             };
         }
         if (exitVert) {
-            const yCh = verticalChannelY(exitSide, entrySide, srcB, tgtB);
+            const yCh = resolveVerticalChannelY(
+                exitSide,
+                entrySide,
+                srcB,
+                tgtB,
+                exitPt,
+                entryPt,
+                obstacleCtx,
+            );
             return {
                 path: [
                     exitPt,
@@ -410,7 +579,15 @@
                 entrySide,
             };
         }
-        const xCh = horizontalChannelX(exitSide, entrySide, srcB, tgtB);
+        const xCh = resolveHorizontalChannelX(
+            exitSide,
+            entrySide,
+            srcB,
+            tgtB,
+            exitPt,
+            entryPt,
+            obstacleCtx,
+        );
         return {
             path: [
                 exitPt,
@@ -620,6 +797,12 @@
         const exitFrac = DEFAULT_FRAC;
         const entryFrac = DEFAULT_FRAC;
 
+        const cfg = getEdgeObstacleCfg();
+        const obstacleCtx = {
+            obstacles: collectSpecObstacles(graph, sourceCell, targetCell),
+            buffer: Number(cfg.obstacleBuffer) || 20,
+        };
+
         const built = buildSpecPath(
             srcB,
             tgtB,
@@ -627,11 +810,48 @@
             sides.entrySide,
             exitFrac,
             entryFrac,
+            obstacleCtx,
         );
+
+        let path = built.path;
+        const util = getEdgeObstacleUtil();
+        const hitsBefore =
+            util?.countPathHits && obstacleCtx.obstacles.length
+                ? util.countPathHits(
+                      path,
+                      obstacleCtx.obstacles,
+                      obstacleCtx.buffer,
+                  )
+                : 0;
+        if (
+            util?.refineOrthogonalPath &&
+            obstacleCtx.obstacles.length &&
+            hitsBefore > 0
+        ) {
+            const refined = util.refineOrthogonalPath(
+                path,
+                obstacleCtx.obstacles,
+                {
+                    buffer: obstacleCtx.buffer,
+                    maxExtraBends: Number(cfg.maxExtraBends) ?? 8,
+                    maxIter: Number(cfg.maxAvoidIter) || 24,
+                    maxPoints: Number(cfg.maxPathPoints) || 22,
+                },
+            );
+            const hitsAfter = util.countPathHits(
+                refined,
+                obstacleCtx.obstacles,
+                obstacleCtx.buffer,
+            );
+            if (hitsAfter <= hitsBefore) {
+                path = refined;
+            }
+        }
+
         applyExplicitRoute(
             graph,
             edgeCell,
-            built.path,
+            path,
             built.exitSide,
             built.entrySide,
             sourceCell,
