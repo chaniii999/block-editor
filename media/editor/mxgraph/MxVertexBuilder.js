@@ -22,6 +22,14 @@
         } catch (_) {}
     }
 
+    function getAssociationLabelOptions(node) {
+        const nodeId = node?.id;
+        if (!nodeId || !ns.MxGraph.associationLink?.hasNode?.(nodeId)) {
+            return {};
+        }
+        return { nodeId, hasAssociations: true };
+    }
+
     /**
      * 주석 본문을 mxGraph 라벨에 맞게 정규화
      * - 단일 줄바꿈은 공백으로 변경
@@ -106,7 +114,12 @@
             styleOverride = 'shape=rectangle;rounded=1;fillColor=#FFFACD;strokeColor=#000000;strokeWidth=1;';
 
         } else if (typeReg.isLoopActionType?.(typeLower) || typeLower === 'loop' || typeLower.includes('loopaction')) {
-            label = formatLabel(node.name, elementType, { isAbstract: node.isAbstract, isVariation: node.isVariation, stereotype: node.stereotype });
+            label = formatLabel(node.name, elementType, {
+                isAbstract: node.isAbstract,
+                isVariation: node.isVariation,
+                stereotype: node.stereotype,
+                ...getAssociationLabelOptions(node),
+            });
             let extraLines = 0;
             const DS_loop = window.SELAB?.Editor?.config?.displaySettings;
             let loopBodyStartY = DS_loop?.mxCellFactory?.loopBodyStartY ?? 40;
@@ -155,7 +168,12 @@
 
         } else if (typeReg.isIfActionType?.(typeLower) || typeLower === 'ifactionusage' || typeLower.includes('ifaction') || typeLower === 'elseifaction' || typeLower === 'elseaction') {
             // IfAction/ElseIfAction/ElseAction: guard 조건은 헤더에서 렌더링, then/else body는 자식 노드로 분리
-            label = formatLabel(node.name, elementType, { isAbstract: node.isAbstract, isVariation: node.isVariation, stereotype: node.stereotype });
+            label = formatLabel(node.name, elementType, {
+                isAbstract: node.isAbstract,
+                isVariation: node.isVariation,
+                stereotype: node.stereotype,
+                ...getAssociationLabelOptions(node),
+            });
             if (node.guard) {
                 label += `\n${node.guard}`;
                 adjustedHeight = Math.max(height, 80);
@@ -178,7 +196,8 @@
                 stereotype: node.stereotype,
                 isPortion: node.isPortion,
                 portionKind: node.portionKind,
-                specializationTargets: node.specializationTargets
+                specializationTargets: node.specializationTargets,
+                ...getAssociationLabelOptions(node),
             });
         }
 

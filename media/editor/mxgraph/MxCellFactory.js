@@ -435,6 +435,7 @@
         }
 
         ns.MxGraph._currentApp = { model: { elements: nodes, edges: edges }, _modelCache: cache };
+        ns.MxGraph.associationLink?.prepareRenderContext?.(model);
         // renderModel 중 CELLS_MOVED 이벤트 무시 플래그
         if (typeof ns.MxGraph._setRendering === 'function') ns.MxGraph._setRendering(true);
         log('모델 렌더링 시작. 노드:', nodes.length, '엣지:', edges.length);
@@ -557,6 +558,7 @@
 
         // 그래프 재구축 작업이 undo 스택에 남지 않도록 클리어
         ns.MxGraph.history?.clear?.();
+        ns.MxGraph.associationLink?.initGraphClick?.(graph);
     }
 
     /**

@@ -1615,3 +1615,131 @@ div.mxRubberband {
     pointer-events: none;
     z-index: 9999;
 }
+
+/* ========================================
+ * 연관관계 목록 모달 (AssociationListModal.js)
+ * ======================================== */
+.association-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.association-modal[hidden] {
+    display: none;
+}
+
+.association-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.association-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(70vh, 520px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px 16px;
+    border: 1px solid var(--vscode-panel-border, #454545);
+    border-radius: 8px;
+    background: var(--vscode-editor-background, #1e1e1e);
+    color: var(--vscode-foreground, #e0e0e0);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.association-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.association-modal__title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.association-modal__close {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.association-modal__close:hover {
+    background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
+}
+
+.association-modal__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow: auto;
+    flex: 1 1 auto;
+}
+
+.association-modal__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--vscode-panel-border, #333);
+}
+
+.association-modal__item:last-child {
+    border-bottom: none;
+}
+
+.association-modal__dir {
+    flex: 0 0 24px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground, #aaa);
+}
+
+.association-modal__link {
+    flex: 1 1 auto;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--vscode-textLink-foreground, #4daafc);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.association-modal__link:hover {
+    text-decoration: underline;
+}
+
+.association-modal__kind {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground, #999);
+}
+
+.association-modal__empty {
+    margin: 0;
+    padding: 12px 4px;
+    font-size: 13px;
+    color: var(--vscode-descriptionForeground, #aaa);
+}
+
+.association-modal__empty[hidden],
+.association-modal__list[hidden] {
+    display: none;
+}

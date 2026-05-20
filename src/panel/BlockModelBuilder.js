@@ -307,6 +307,32 @@ function buildBlockModel(model) {
         filteredNodes.push(nextNode);
     }
 
+    const associations = [];
+    for (const edge of rawEdges) {
+        const edgeKind = normalizeEdgeKind(edge);
+        if (edgeKind !== 'association') {
+            continue;
+        }
+        const sourceKey = resolveNodeKey(edge.source);
+        const targetKey = resolveNodeKey(edge.target);
+        if (
+            !sourceKey ||
+            !targetKey ||
+            sourceKey === targetKey ||
+            !keptNodeKeys.has(sourceKey) ||
+            !keptNodeKeys.has(targetKey)
+        ) {
+            continue;
+        }
+        associations.push({
+            ...edge,
+            source: sourceKey,
+            target: targetKey,
+            kind: 'association',
+            type: 'association',
+        });
+    }
+
     const filteredEdges = [];
     for (const edge of rawEdges) {
         const edgeKind = normalizeEdgeKind(edge);
@@ -345,6 +371,7 @@ function buildBlockModel(model) {
     return {
         nodes: filteredNodes,
         edges: deduplicateEdges(filteredEdges),
+        associations: deduplicateEdges(associations),
     };
 }
 

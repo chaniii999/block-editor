@@ -190,6 +190,7 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('mxgraph/MxStyleShapes.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxStyleManager.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxTypeUtils.js')}"></script>
+    <script nonce="${nonce}" src="${es('mxgraph/MxAssociationLink.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxLabelUtils.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxCompartmentHtml.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxCompartmentRenderer.js')}"></script>
@@ -270,6 +271,7 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('ui/PropertyPanelConstraints.js')}"></script>
     <script nonce="${nonce}" src="${es('ui/PropertyPanelTextualView.js')}"></script>
     <script nonce="${nonce}" src="${es('ui/PropertyPanel.js')}"></script>
+    <script nonce="${nonce}" src="${es('ui/AssociationListModal.js')}"></script>
     <script nonce="${nonce}" src="${es('attributes.js')}"></script>
     ${modAiWorkflow ? `<script nonce="${nonce}" src="${modAiWorkflow.toString()}?${version}"></script>` : ''}
     <!-- Model Layer -->

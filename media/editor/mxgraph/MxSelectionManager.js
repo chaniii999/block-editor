@@ -153,7 +153,6 @@
      */
     function updateAttributePanel(cells) {
         if (cells.length === 0) {
-            // 빈 공간 클릭은 MxEventHandler에서 처리
             return;
         }
 
@@ -179,6 +178,9 @@
             // 다중 선택 시 패널 숨기기
             if (ns.Editor?.attributes?.render) {
                 ns.Editor.attributes.render(null, null);
+            }
+            if (ns.Editor?.associationList?.hide) {
+                ns.Editor.associationList.hide();
             }
         }
     }

@@ -104,6 +104,9 @@
         const config = ensureVisibilityConfig(visibilityConfig);
         const nodes = Array.isArray(model?.nodes) ? model.nodes : [];
         const edges = Array.isArray(model?.edges) ? model.edges : [];
+        const associations = Array.isArray(model?.associations)
+            ? model.associations
+            : [];
 
         // 디버그용 원본 모델 저장
         window._lastModel = model;
@@ -150,6 +153,7 @@
             elements,
             connections: finalConnections,
             allConnectionsForHierarchy,
+            associations,
             cache, // 캐시 객체 추가
         };
     }

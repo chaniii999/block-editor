@@ -318,6 +318,10 @@
                 graph.clearSelection();
                 log('빈 공간 클릭 - 선택 해제');
 
+                if (ns.Editor?.associationList?.hide) {
+                    ns.Editor.associationList.hide();
+                }
+
                 // 속성 패널 닫기 (SVG 버전과 동일하게 처리)
                 if (ns.Editor?.attributes?.render) {
                     ns.Editor.attributes.render(null, null);

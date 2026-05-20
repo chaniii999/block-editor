@@ -36,7 +36,24 @@
      * @returns {string} 포맷된 라벨
      */
     function formatLabel(name, type, options = {}) {
-        const { isAbstract, isVariation, isIndividual, declaredType, stereotype: customStereotype, specializationTargets } = options;
+        const {
+            isAbstract,
+            isVariation,
+            isIndividual,
+            declaredType,
+            stereotype: customStereotype,
+            specializationTargets,
+            nodeId,
+            hasAssociations,
+        } = options;
+
+        const withAssocLink = (displayText) => {
+            if (!hasAssociations || !nodeId) {
+                return displayText;
+            }
+            const append = ns.MxGraph.associationLink?.appendLinkToNameHtml;
+            return append ? append(displayText, nodeId) : displayText;
+        };
         
         const typeLower = String(type || '').toLowerCase();
         
@@ -61,7 +78,7 @@
         // Package는 이름만 표시 (swimlane 헤더에 표시됨)
         // library package도 일반 package로 처리
         if (typeLower === 'package' || typeLower === 'librarypackage') {
-            return name;
+            return withAssocLink(name);
         }
         
         // SysML v2: Usage 타입은 "name : TypeName" 형식으로 표시
@@ -104,7 +121,7 @@
         
         const utils = ns.Editor?.utils;
         if (utils?.shouldShowStereotypesInUi?.() === false) {
-            return displayName;
+            return withAssocLink(displayName);
         }
 
         // Language Extension 키워드의 경우 customStereotype 우선 사용
@@ -117,20 +134,20 @@
             const modifiedStereotype = (keywordPrefix && !isLanguageExtension)
                 ? stereotype.replace('«', `«${keywordPrefix}`)
                 : stereotype;
-            return `<div style="text-align:center;">${modifiedStereotype}</div>${displayName}`;
+            return `<div style="text-align:center;">${modifiedStereotype}</div>${withAssocLink(displayName)}`;
         }
         
         // fallback: type 키워드 포맷
         const typeKeyword = getTypeKeyword(type, options);
         if (typeKeyword) {
             // 스테레오타입에 abstract/variation 키워드 포함
-            return `<div style="text-align:center;">«${keywordPrefix}${typeKeyword}»</div>${displayName}`;
+            return `<div style="text-align:center;">«${keywordPrefix}${typeKeyword}»</div>${withAssocLink(displayName)}`;
         }
         // typeKeyword가 없고 keywordPrefix만 있는 경우 (individual occurrence)
         if (keywordPrefix) {
-            return `<div style="text-align:center;">«${keywordPrefix.trim()}»</div>${displayName}`;
+            return `<div style="text-align:center;">«${keywordPrefix.trim()}»</div>${withAssocLink(displayName)}`;
         }
-        return displayName;
+        return withAssocLink(displayName);
     }
 
     /**
