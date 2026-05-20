@@ -19,15 +19,16 @@
  * 11. MxHistoryManager.js
  * 12. MxEventHandler.js
  * 13. MxSelectionManager.js
- * 14. MxDragHandler.js
- * 15. MxZoomPanHandler.js
- * 16. MxLayoutManager.js
- * 17. MxMinimap.js
- * 18. EdgeTypeMapping.js (에지 타입 매핑 테이블)
- * 19. EdgeTypeMenu.js (에지 타입 선택 컨텍스트 메뉴)
- * 20. MxConnectionHandler.js
- * 21. MxFoldManager.js (Collapse/Expand)
- * 22. MxContextMenu.js (ninja-keys 컨텍스트 메뉴)
+ * 14. MxNeighborHighlight.js (선택 국소 하이라이트)
+ * 15. MxDragHandler.js
+ * 16. MxZoomPanHandler.js
+ * 17. MxLayoutManager.js
+ * 18. MxMinimap.js
+ * 19. EdgeTypeMapping.js (에지 타입 매핑 테이블)
+ * 20. EdgeTypeMenu.js (에지 타입 선택 컨텍스트 메뉴)
+ * 21. MxConnectionHandler.js
+ * 22. MxFoldManager.js (Collapse/Expand)
+ * 23. MxContextMenu.js (ninja-keys 컨텍스트 메뉴)
  * ********************************************************************************/
 (function () {
     'use strict';

@@ -5,6 +5,51 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-20 — 선택 하이라이트·test-9 렌더·spec 밴드
+
+### 지시
+
+> 노드/엣지 클릭 시 연결 맥락 하이라이트, 연관은 JSON에서만, test-9 렌더 안 됨 수정, 워크로그·커밋 메시지·성찬_README
+
+### 수정 (스테이징 기준)
+
+| 파일 | 변경 요지 |
+|------|------------|
+| `media/editor/mxgraph/MxNeighborHighlight.js` | **신규** — 선택 변경 시 메인(주황)·mx엣지(파랑)·연결노드(청록)·연관노드(보라, `associations` JSON) 테두리 |
+| `media/editor/boot.js` | `neighborHighlight.init(graph)` |
+| `src/HtmlGenerator.js` | 스크립트 로드 |
+| `media/editor/mxgraph/MxCellFactory.js` | `renderModel` 전 `neighborHighlight.clear` |
+| `media/editor/mxgraph/index.js` | 모듈 목록 주석 |
+| `media/editor/layout/bddLayout.js` | spec 밴드: 무방향 연결 요소·`isRootDiagramNode`(컨테이너 내 spec은 밴드 Y/layerBottom 제외, test-9) |
+| `p_docs/레이아웃_엣지_총괄규칙.md` | spec 밴드 연결 요소 설명 한 줄 |
+
+| `성찬_README.md` | 본인 기여 전체 요약(과제·라우팅·연관·레이아웃·하이라이트·테스트) |
+
+### 개선 내용
+
+- **연관 노드:** mx 엣지 탐색이 아니라 `BlockModelBuilder` → `model.associations`와 `AssociationListModal`과 동일 partner lookup.
+- **연결 노드:** 선택 버텍스에 붙은 **렌더된 mx 엣지**의 반대편 노드만 (상속 등). 상속은 선으로 이미 보임.
+- **test-9:** `Storage@PowerGrid` 같이 containment 안 spec 노드가 `layerBottom`만 끌어올려 루트 Y가 뷰포트 밖으로 가던 문제 → 루트 다이어그램 노드만 밴드 반영.
+
+### 확인
+
+- `npm run build` 통과
+- `node scripts/check-bdd-postlayout.mjs` — test-9 OK
+- F5: test-9 표시·BatteryStorage 선택 시 Inverter 등 보라 테두리
+
+### 커밋 메시지 (안)
+
+```
+feat(ui): 선택 하이라이트와 test-9 spec 밴드 루트 노드 보정
+
+- MxNeighborHighlight: 메인·mx엣지·연결·연관(JSON) 테두리 색 분리, 다크/라이트
+- bddLayout: spec 밴드는 연결 요소 단위, 컨테이너 내부 spec은 Y 밴드 제외(test-9)
+- boot·HtmlGenerator·renderModel clear 연동
+- 성찬_README.md 기여 요약 추가
+```
+
+---
+
 ## 2026-05-20 — spec·비spec 직교 라우팅·차선·재라우팅 정리
 
 ### 지시

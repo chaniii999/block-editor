@@ -515,6 +515,7 @@
       // 상호작용 핸들러 초기화 (Phase 3)
       ns.MxGraph.events?.setupDefaultHandlers?.(graph);
       ns.MxGraph.selection?.init?.(graph);
+      ns.MxGraph.neighborHighlight?.init?.(graph);
       ns.MxGraph.drag?.init?.(graph);
       ns.MxGraph.zoomPan?.init?.(graph, mxContainer);
 

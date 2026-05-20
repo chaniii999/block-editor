@@ -445,6 +445,7 @@
 
         ns.MxGraph._currentApp = { model: { elements: nodes, edges: edges }, _modelCache: cache };
         ns.MxGraph.associationLink?.prepareRenderContext?.(model);
+        ns.MxGraph.neighborHighlight?.clear?.(graph);
         // renderModel 중 CELLS_MOVED 이벤트 무시 플래그
         if (typeof ns.MxGraph._setRendering === 'function') ns.MxGraph._setRendering(true);
         log('모델 렌더링 시작. 노드:', nodes.length, '엣지:', edges.length);

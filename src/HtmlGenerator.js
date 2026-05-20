@@ -203,6 +203,7 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('mxgraph/MxHistoryManager.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxEventHandler.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxSelectionManager.js')}"></script>
+    <script nonce="${nonce}" src="${es('mxgraph/MxNeighborHighlight.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxDragHandler.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxZoomPanHandler.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxLayoutManager.js')}"></script>

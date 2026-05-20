@@ -85,6 +85,14 @@
         return absoluteTop(el, byId) + h;
     }
 
+    /** 컨테이너 내부 노드는 spec 밴드 Y·layerBottom에서 제외 (test-9 Storage@PowerGrid 등) */
+    function isRootDiagramNode(el, byId) {
+        if (!el || el.hidden) {
+            return false;
+        }
+        return !el.parent || !byId.has(el.parent);
+    }
+
     function elementOnSpineStack(el, byId) {
         let cur = el;
         while (cur) {
@@ -196,8 +204,8 @@
     }
 
     /**
-     * 부모(target) Y 밴드 < 자식(source) — spec 트리(숲)마다 독립 적용
-     * (test-5: Signal·Bus·Transmitter·Receiver를 한 줄 Y에 몰지 않음)
+     * 부모(target) Y 밴드 < 자식(source) — spec 그래프의 무방향 연결 요소마다 한 번 적용
+     * (test-5: 한 줄 Y 방지 / test-8: 다중 상속 시 루트별 BFS로 동일 노드가 두 번 밴딩되는 것 방지)
      */
     function applySpecVerticalBands(diagramData, cfg) {
         const elements = Array.isArray(diagramData?.elements)
@@ -211,8 +219,22 @@
         const visible = elements.filter((e) => e && !e.hidden && e.id);
         const byId = indexElements(elements);
         const childToParents = new Map();
-        const childrenOf = new Map();
         const involved = new Set();
+        /** 다중 상속·다이아몬드: 루트에서 한 방향으로만 모으면 자식이 여러 숲에 중복됨 */
+        const specAdj = new Map();
+
+        function specAdjLink(a, b) {
+            const sa = String(a);
+            const sb = String(b);
+            if (!specAdj.has(sa)) {
+                specAdj.set(sa, new Set());
+            }
+            if (!specAdj.has(sb)) {
+                specAdj.set(sb, new Set());
+            }
+            specAdj.get(sa).add(sb);
+            specAdj.get(sb).add(sa);
+        }
 
         for (const conn of connections) {
             if (!isSpecKind(conn.kind || conn.type)) continue;
@@ -221,19 +243,13 @@
             if (!byId.has(childId) || !byId.has(parentId) || childId === parentId) {
                 continue;
             }
+            specAdjLink(childId, parentId);
             if (!childToParents.has(childId)) {
                 childToParents.set(childId, []);
             }
             const plist = childToParents.get(childId);
             if (!plist.includes(parentId)) {
                 plist.push(parentId);
-            }
-            if (!childrenOf.has(parentId)) {
-                childrenOf.set(parentId, []);
-            }
-            const clist = childrenOf.get(parentId);
-            if (!clist.includes(childId)) {
-                clist.push(childId);
             }
             involved.add(childId);
             involved.add(parentId);
@@ -256,30 +272,32 @@
             return value;
         }
 
-        function collectSpecSubtree(forestRootId) {
-            const out = new Set([forestRootId]);
-            const q = [forestRootId];
+        const specComponents = [];
+        const compSeen = new Set();
+        for (const seed of involved) {
+            const sid = String(seed);
+            if (compSeen.has(sid)) {
+                continue;
+            }
+            const comp = [];
+            const q = [sid];
+            compSeen.add(sid);
             while (q.length > 0) {
-                const pid = q.shift();
-                for (const cid of childrenOf.get(pid) || []) {
-                    if (!out.has(cid)) {
-                        out.add(cid);
-                        q.push(cid);
+                const u = q.pop();
+                comp.push(u);
+                for (const v of specAdj.get(u) || []) {
+                    const vs = String(v);
+                    if (!compSeen.has(vs)) {
+                        compSeen.add(vs);
+                        q.push(vs);
                     }
                 }
             }
-            return out;
+            specComponents.push(comp);
         }
 
-        const forestRoots = [];
-        for (const id of involved) {
-            if (!childToParents.has(id)) {
-                forestRoots.push(id);
-            }
-        }
-
-        for (const forestRootId of forestRoots) {
-            const subtree = collectSpecSubtree(forestRootId);
+        for (const comp of specComponents) {
+            const subtree = new Set(comp);
             const layer = new Map();
             for (const id of subtree) {
                 assignLayer(id, layer);
@@ -296,7 +314,11 @@
 
             let bandY = Infinity;
             for (const id of subtree) {
-                bandY = Math.min(bandY, Number(byId.get(id)?.y) || 0);
+                const n = byId.get(id);
+                if (!isRootDiagramNode(n, byId)) {
+                    continue;
+                }
+                bandY = Math.min(bandY, Number(n.y) || 0);
             }
             if (!Number.isFinite(bandY)) {
                 bandY = 50;
@@ -307,11 +329,7 @@
                 const nodeIds = layerToNodes.get(l) || [];
                 for (const id of nodeIds) {
                     const n = byId.get(id);
-                    if (!n) {
-                        continue;
-                    }
-                    // containment 안에 있는 노드는 컨테이너 좌표 유지 (test-2 Triangle@Layer)
-                    if (n.parent && byId.has(n.parent)) {
+                    if (!n || !isRootDiagramNode(n, byId)) {
                         continue;
                     }
                     const oldY = Number(n.y) || 0;
@@ -325,7 +343,7 @@
                 let layerBottom = bandY;
                 for (const id of nodeIds) {
                     const n = byId.get(id);
-                    if (!n) {
+                    if (!n || !isRootDiagramNode(n, byId)) {
                         continue;
                     }
                     const bottom =
