@@ -126,6 +126,8 @@
             siblingOverlapGap: 32,
             /** 컨테이너 안 직접 자식 가로 한 줄 간격 (mx resizeParents·bdd 팩 공통) */
             containmentRowGap: 28,
+            /** 헤더(이름·compartment) 아래 — 최상단 자식 상단 추가 여백(위로 나가는 엣지·텍스트 겹침 방지) */
+            containerChildTopClearance: 24,
             /** 단일 자식 포함 체인(7단 등) — 얇은 스파인 프레임 */
             compactSpineMinChain: 3,
             compactSpineLabelTop: 32,

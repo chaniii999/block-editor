@@ -101,7 +101,10 @@
         if (el._compactContainmentSpine || el._tightSingleChildContainer) {
           const spineTop =
             Number(DS?.bdd?.compactSpineLabelTop) || 32;
-          el._precomputedPaddingTop = spineTop;
+          const withClearance = ns.Editor?.layout?.bdd?.withContainerChildTopClearance;
+          el._precomputedPaddingTop = withClearance
+            ? withClearance(spineTop)
+            : spineTop + (Number(DS?.bdd?.containerChildTopClearance) || 20);
           continue;
         }
 
@@ -121,7 +124,10 @@
           const contentTop = labelHeight + compHeight;
           if (contentTop > 0) {
             // mxGraph compartment 시작(y=labelHeight)과 ELK 자식 영역 상단을 맞춤
-            el._precomputedPaddingTop = contentTop;
+            const withClearance = ns.Editor?.layout?.bdd?.withContainerChildTopClearance;
+            el._precomputedPaddingTop = withClearance
+              ? withClearance(contentTop)
+              : contentTop + (Number(DS?.bdd?.containerChildTopClearance) || 20);
           }
         }
         if (Array.isArray(el.featureTypingFooter) && el.featureTypingFooter.length > 0) {

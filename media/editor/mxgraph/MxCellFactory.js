@@ -80,16 +80,25 @@
         }
     }
 
+    function getContainerChildTopClearance() {
+        const n = Number(ns.Editor?.config?.displaySettings?.bdd?.containerChildTopClearance);
+        return Number.isFinite(n) && n >= 0 ? n : 20;
+    }
+
+    function withContainerChildTopClearance(topPad) {
+        return (Number(topPad) || 0) + getContainerChildTopClearance();
+    }
+
     function getContentAreaTop(parentCell, parentNode) {
         const node = parentNode || parentCell?._nodeData;
+        const precomputed = Number(node?._precomputedPaddingTop);
+        if (precomputed > 0) return precomputed;
         if (node?._compactContainmentSpine || node?._tightSingleChildContainer) {
             const spineTop =
                 Number(ns.Editor?.config?.displaySettings?.bdd?.compactSpineLabelTop) ||
                 32;
-            return spineTop;
+            return withContainerChildTopClearance(spineTop);
         }
-        const precomputed = Number(node?._precomputedPaddingTop);
-        if (precomputed > 0) return precomputed;
         const labelH =
             parentCell?._labelHeight ||
             node?._labelHeight ||
@@ -114,7 +123,7 @@
             );
             top = Math.max(top, labelH + compH + 4);
         }
-        return top;
+        return withContainerChildTopClearance(top);
     }
 
     /** bddLayout.packContainmentChildrenHorizontally 와 동일 기준 — 액션 다이어그램은 제외 */

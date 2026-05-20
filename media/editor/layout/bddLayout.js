@@ -722,6 +722,15 @@
         return n;
     }
 
+    function getContainerChildTopClearance() {
+        const n = Number(NS.Editor?.config?.displaySettings?.bdd?.containerChildTopClearance);
+        return Number.isFinite(n) && n >= 0 ? n : 20;
+    }
+
+    function withContainerChildTopClearance(topPad) {
+        return (Number(topPad) || 0) + getContainerChildTopClearance();
+    }
+
     /** BDD 컨테이너 — 라벨·compartment(포트) 아래에 자식 블록 배치 */
     function getBddContainerPads(parent, elkCP) {
         const DS = NS.Editor?.config?.displaySettings;
@@ -731,7 +740,8 @@
             Number(DS?.label?.minHeight) ||
             35;
         let topPad = Number(parent._precomputedPaddingTop) || 0;
-        if (!(topPad > 0)) {
+        const fromPrecompute = topPad > 0;
+        if (!fromPrecompute) {
             topPad = Math.max(Number(CP.top) || 48, labelH + 6);
             const metrics = NS.Editor?.metrics;
             const comps = parent.compartments;
@@ -747,6 +757,7 @@
                 );
                 topPad = Math.max(topPad, labelH + compH + 4);
             }
+            topPad = withContainerChildTopClearance(topPad);
         }
         return {
             top: topPad,
@@ -844,7 +855,7 @@
                 continue;
             }
             el._tightSingleChildContainer = true;
-            el._precomputedPaddingTop = cfg.labelTop;
+            el._precomputedPaddingTop = withContainerChildTopClearance(cfg.labelTop);
         }
 
         if (policy?.markCompactContainmentSpines) {
@@ -884,7 +895,7 @@
             for (let i = 0; i < chain.length - 1; i++) {
                 chain[i]._compactContainmentSpine = true;
                 chain[i]._tightSingleChildContainer = true;
-                chain[i]._precomputedPaddingTop = cfg.labelTop;
+                chain[i]._precomputedPaddingTop = withContainerChildTopClearance(cfg.labelTop);
             }
         }
     }
@@ -968,7 +979,7 @@
             return;
         }
 
-        const topPad = cfg.labelTop;
+        const topPad = withContainerChildTopClearance(cfg.labelTop);
         const n = chain.length;
         const leaf = chain[n - 1];
         const leafW = Number(leaf.width) || 120;
@@ -1049,9 +1060,10 @@
         if (!parent || !child) {
             return;
         }
+        const labelTopPad = withContainerChildTopClearance(cfg.labelTop);
         const topPad = useTight
-            ? Math.max(Number(parent._precomputedPaddingTop) || 0, cfg.labelTop)
-            : Number(parent._precomputedPaddingTop) || cfg.labelTop;
+            ? Math.max(Number(parent._precomputedPaddingTop) || 0, labelTopPad)
+            : Number(parent._precomputedPaddingTop) || labelTopPad;
         const sideL = useTight ? cfg.singleLeft : 12;
         const sideR = useTight ? cfg.singleRight : 12;
         const bottomPad = useTight ? cfg.singleBottom : 20;
@@ -1502,5 +1514,7 @@
         resolveSiblingOverlaps,
         fitDiagramToMargins,
         clearSpecWaypoints,
+        getContainerChildTopClearance,
+        withContainerChildTopClearance,
     };
 })();
