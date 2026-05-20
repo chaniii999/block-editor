@@ -139,6 +139,7 @@
 
         listEl = document.createElement('ul');
         listEl.className = 'association-modal__list';
+        listEl.addEventListener('click', handleAssociationListDelegatedClick);
 
         emptyEl = document.createElement('p');
         emptyEl.className = 'association-modal__empty';
@@ -188,8 +189,22 @@
         } catch (_) {}
     }
 
+    function handleAssociationListDelegatedClick(event) {
+        const link = event.target.closest('.association-modal__link');
+        if (!link || !listEl || !listEl.contains(link)) {
+            return;
+        }
+        const otherId = link.getAttribute('data-assoc-other-id');
+        const graph = listEl._assocGraphForModal || ns.Editor._mxGraph;
+        if (otherId) {
+            focusNodeInGraph(otherId, graph);
+        }
+        hide();
+    }
+
     function renderList(rows, graph) {
         listEl.innerHTML = '';
+        listEl._assocGraphForModal = graph || null;
         const hasRows = rows.length > 0;
         listEl.hidden = !hasRows;
         emptyEl.hidden = hasRows;
@@ -207,9 +222,7 @@
             label.className = 'association-modal__link';
             label.textContent = row.otherName;
             label.title = row.otherId;
-            label.addEventListener('click', () => {
-                focusNodeInGraph(row.otherId, graph);
-            });
+            label.setAttribute('data-assoc-other-id', row.otherId);
 
             const kind = document.createElement('span');
             kind.className = 'association-modal__kind';
