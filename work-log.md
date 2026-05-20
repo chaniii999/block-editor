@@ -5,6 +5,46 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-20 — 노드 헤더 폭(이름+🔗+접기) 사전계산
+
+### 지시
+
+> 노드 이름·연관 링크·접기 버튼 겹침 — 라벨 말줄임/정렬 방식은 롤백, **글자+링크+접기 길이만큼 노드 폭을 넓히기** (test-1 `Transmission` 등)
+
+### 수정
+
+| 파일 | 변경 요지 |
+|------|------------|
+| `media/editor/layout.js` | `precomputeNodeSizes`: 헤더 폭 = 이름(·스테레오타입) + 연관 🔗 실측 + 접기 33px; `elementWillFold`는 그래프 자식·compartment 선행 판단 |
+| `media/editor/config/displaySettings.js` | `nodeLabel` 상수(접기·링크 여백 px) — precompute 전용 |
+| `media/editor/mxgraph/MxVertexBuilder.js` | `MxLabelFit` 연동·`spacingRight` 강제·헤더 좌측정렬 제거, collapsed 시 기존 12자 말줄임만 유지 |
+| `media/editor/mxgraph/MxLabelFit.js` | **삭제** (HTML 말줄임·wrapper 방식 폐기) |
+| `src/HtmlGenerator.js` | `MxLabelFit.js` 스크립트 제거 |
+
+### 개선 내용
+
+- **겹침 원인(이전):** 라벨 HTML 맞춤·가운데 정렬이 mxGraph와 맞지 않아 오히려 레이아웃 깨짐; precompute 시점에 `_hasChildren` 미설정으로 접기 여백 누락(`Transmission`).
+- **현재:** ELK 전 `el.width`에 헤더 UI 폭을 **가산** — compartment보다 헤더가 넓으면 노드가 그만큼 커짐.
+- **접기 대상:** `MxFoldManager.isFoldTarget` + 부모 id 기준 자식 수 + `getCompartments`로 fold 여부 판단.
+- **연관 링크:** `model.associations` endpoint면 `margin-left` + `🔗` `measureTextWidth` 합산.
+
+### 확인
+
+- `npm run build` 통과
+- F5: test-1 `Transmission` — 이름·🔗·접기(−) 한 줄에 겹침 없음
+
+### 커밋 메시지 (안)
+
+```
+fix(layout): 노드 폭에 이름·연관 링크·접기 버튼 길이 반영
+
+- precomputeNodeSizes: 헤더 폭 가산, 자식·compartment로 접기 대상 선판단
+- MxLabelFit·라벨 HTML 말줄임/좌측정렬 제거(롤백)
+- displaySettings.nodeLabel 상수로 접기·링크 px 유지
+```
+
+---
+
 ## 2026-05-20 — 선택 하이라이트·test-9 렌더·spec 밴드
 
 ### 지시

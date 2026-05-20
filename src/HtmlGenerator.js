@@ -192,7 +192,6 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('mxgraph/MxTypeUtils.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxAssociationLink.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxLabelUtils.js')}"></script>
-    <script nonce="${nonce}" src="${es('mxgraph/MxLabelFit.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxCompartmentHtml.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxCompartmentRenderer.js')}"></script>
     <script nonce="${nonce}" src="${es('mxgraph/MxLoopBodyRenderer.js')}"></script>

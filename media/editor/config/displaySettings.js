@@ -36,7 +36,7 @@
             showStereotypes: false,        // BDD: «part def» 등 스테레오타입 미표시
         },
 
-        // ─── 노드 헤더 라벨 vs 접기·연관 링크 (MxLabelFit · MxFoldManager) ──
+        // ─── 노드 헤더: 이름+연관 링크+접기 버튼 폭 (layout.js precomputeNodeSizes) ──
         nodeLabel: {
             foldOverlayOffsetX: 13,        // mxCellOverlay 우측 여백 (MxFoldManager mxPoint)
             foldIconSize: 16,

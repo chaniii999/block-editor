@@ -35,9 +35,78 @@
     return false;
   }
 
+  function measureAssocLinkWidth(utils, font, DS) {
+    const nl = DS?.nodeLabel || {};
+    const margin = nl.assocLinkMarginPx ?? 5;
+    if (utils?.measureTextWidth) {
+      return margin + utils.measureTextWidth('🔗', font);
+    }
+    return nl.assocLinkReservePx ?? 21;
+  }
+
+  function elementWillFold(el, elType, hasGraphChildren, tempApp) {
+    if (ns.MxGraph?.fold?.isFoldTarget?.(el)) {
+      return true;
+    }
+    const tu = ns.MxGraph?.typeUtils;
+    const typeLower = String(elType || '').toLowerCase();
+    if (tu?.isPackageType?.(typeLower)) {
+      return !!hasGraphChildren;
+    }
+    if (!tu?.isContainerLikeType?.(typeLower)) {
+      return false;
+    }
+    if (hasGraphChildren) {
+      return true;
+    }
+    let compartments = el.compartments || [];
+    if (compartments.length === 0 && ns.Editor?.render?.elements?.getCompartments) {
+      try {
+        compartments = ns.Editor.render.elements.getCompartments(el, tempApp);
+      } catch (_) {}
+    }
+    const visible = compartments.filter((c) => c.key !== 'references');
+    return visible.some(
+      (c) => (Array.isArray(c.items) && c.items.length > 0) || c.headerOnly === true
+    );
+  }
+
+  function computeHeaderLabelWidth(el, model, elType, hasGraphChildren, tempApp, utils, font, DS) {
+    const stereotype = utils?.getStereotypeText?.(el.type) || '';
+    let name = String(el.name || '');
+    if (el.declaredType && elType.endsWith('usage') && !name.includes(' : ')) {
+      name = `${name} : ${el.declaredType}`;
+    }
+    const NP = DS?.nodePrecompute;
+    const charW = NP?.charWidthEstimate ?? 7;
+    let stereotypeWidth = 0;
+    let nameWidth = 0;
+    if (utils?.measureTextWidth) {
+      stereotypeWidth = stereotype ? utils.measureTextWidth(stereotype, font) : 0;
+      nameWidth = name ? utils.measureTextWidth(name, font) : 0;
+    } else {
+      stereotypeWidth = stereotype ? stereotype.length * charW : 0;
+      nameWidth = name ? name.length * charW : 0;
+    }
+    let headerWidth = Math.max(stereotypeWidth, nameWidth);
+    if (elementHasAssociations(el, model)) {
+      headerWidth += measureAssocLinkWidth(utils, font, DS);
+    }
+    if (elementWillFold(el, elType, hasGraphChildren, tempApp)) {
+      headerWidth += DS?.nodeLabel?.foldButtonReservePx ?? 33;
+    }
+    return headerWidth;
+  }
+
   function precomputeNodeSizes(model) {
     const elements = Array.isArray(model?.elements) ? model.elements : [];
     const edges = Array.isArray(model?.connections) ? model.connections : (Array.isArray(model?.edges) ? model.edges : []);
+    const graphChildCountByParent = new Map();
+    for (const n of elements) {
+      if (!n?.parent) continue;
+      const pid = String(n.parent);
+      graphChildCountByParent.set(pid, (graphChildCountByParent.get(pid) || 0) + 1);
+    }
 
     // displaySettings에서 노드 사전계산 설정 참조
     const DS = ns.Editor?.config?.displaySettings;
@@ -261,37 +330,25 @@
         }
       }
 
-      // 2. 스테레오타입 + 이름의 폭 계산
+      // 2. 스테레오타입 + 이름(+연관 링크 + 접기 버튼) 폭 계산
       let nodeWidth = minWidth;
       let nodeHeight = NP?.defaultHeight ?? 40;
-      
-      // 스테레오타입 텍스트
+
+      const hasGraphChildren = (graphChildCountByParent.get(String(el.id)) || 0) > 0;
+      const headerWidth = computeHeaderLabelWidth(
+        el, model, elType, hasGraphChildren, tempApp, utils, font, DS
+      );
+      maxContentWidth = Math.max(maxContentWidth, headerWidth);
+
       const stereotype = utils?.getStereotypeText?.(el.type) || '';
-      // declaredType이 있으면 실제 렌더링 텍스트 "name : Type" 형태로 계산
       let name = String(el.name || '');
       if (el.declaredType && elType.endsWith('usage') && !name.includes(' : ')) {
         name = `${name} : ${el.declaredType}`;
       }
-      
-      if (hasTextMeasure) {
-        // 정확한 텍스트 측정
-        const stereotypeWidth = stereotype ? utils.measureTextWidth(stereotype, font) : 0;
-        const nameWidth = name ? utils.measureTextWidth(name, font) : 0;
-        const headerWidth = Math.max(stereotypeWidth, nameWidth);
-        
-        // 헤더와 compartment 중 더 넓은 쪽 선택
-        maxContentWidth = Math.max(maxContentWidth, headerWidth);
-        
-        let labelChromeReserve = 0;
-        if (ns.MxGraph?.fold?.isFoldTarget?.(el)) {
-          labelChromeReserve += DS?.nodeLabel?.foldButtonReservePx ?? 33;
-        }
-        if (elementHasAssociations(el, model)) {
-          labelChromeReserve += DS?.nodeLabel?.assocLinkReservePx ?? 19;
-        }
 
-        // 노드 폭 = 최대 컨텐츠 폭 + 패딩 + 접기/연관 UI 여유 (최소/최대 제한)
-        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX + labelChromeReserve));
+      if (hasTextMeasure) {
+        // 노드 폭 = 헤더·compartment 등 최대 컨텐츠 + 좌우 패딩
+        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX));
         
         // 이제 확정된 노드 폭으로 줄바꿈 수행
         const availableWidth = nodeWidth - padX;
@@ -311,25 +368,7 @@
         }
         
       } else {
-        // 텍스트 측정 불가 시 문자열 길이 기반 추정
-        const charW = NP?.charWidthEstimate ?? 7;
-        const stereotypeWidth = stereotype ? stereotype.length * charW : 0;
-        const nameWidth = name ? name.length * charW : 0;
-        const headerWidth = Math.max(stereotypeWidth, nameWidth);
-        
-        // 헤더와 compartment 중 더 넓은 쪽 선택
-        maxContentWidth = Math.max(maxContentWidth, headerWidth);
-        
-        let labelChromeReserve = 0;
-        if (ns.MxGraph?.fold?.isFoldTarget?.(el)) {
-          labelChromeReserve += DS?.nodeLabel?.foldButtonReservePx ?? 33;
-        }
-        if (elementHasAssociations(el, model)) {
-          labelChromeReserve += DS?.nodeLabel?.assocLinkReservePx ?? 19;
-        }
-
-        // 노드 폭 = 최대 컨텐츠 폭 + 패딩 + 접기/연관 UI 여유 (최소/최대 제한)
-        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX + labelChromeReserve));
+        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX));
       }
 
       el.width = nodeWidth;
