@@ -42,7 +42,7 @@ fork 전 As-Is는 [`README.SELab.md`](README.SELab.md)의 `docs/image.png`와 �
 <img width="1382" height="978" alt="test1" src="https://github.com/user-attachments/assets/30dd7e40-3596-4c16-9355-d26356a1d219" />
 
 **상속-연관관계 하이라이팅 구현**
-<img width="1221" height="421" alt="스크린샷 2026-05-20 231828" src="https://github.com/user-attachments/assets/bc399fa3-7c7b-495c-882d-bc2cd8e1207e" />
+<img width="860" height="886" alt="image" src="https://github.com/user-attachments/assets/42c6adc3-3327-4c3f-b040-c4e5f294aafc" />
 
 
 **test-9 (nested spec 크롬)**  
