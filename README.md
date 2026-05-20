@@ -39,16 +39,18 @@ npm install && npm run build
 **test-1 (필수, README As-Is 대비)**  
 fork 전 As-Is는 [`README.SELab.md`](README.SELab.md)의 `docs/image.png`와 동일한 화면을 Before로 두고, 개선 후는 같은 `test-1.json`을 F5로 연 화면을 After로 캡처합니다. 권장 파일명: `docs/test-1-before.png`, `docs/test-1-after.png`.
 
-**test-9 (nested spec 크롬)**  
-`SCADA`⊂`GridController` — 헤더 🔼, `SCADA`→`GridController` 상속선 없음, `SCADA` 선택 시 부모 하이라이트가 보이는 화면. 권장: `docs/test-9-scada.png`.
+<img width="1382" height="978" alt="test1" src="https://github.com/user-attachments/assets/30dd7e40-3596-4c16-9355-d26356a1d219" />
+
+** 상속-연관관계 하이라이팅 구현**
+<img width="1312" height="380" alt="스크린샷 2026-05-20 200210" src="https://github.com/user-attachments/assets/3ec8d40a-9cdd-4fda-a24f-423f15dc3155" />
+
 
 **test-8 (선택, 알려진 한계 확인)**  
 `Gateway` 다중 spec 부모 UI는 **미해결(보류)** 상태임을 보여 주는 참고용. 권장: `docs/test-8-gateway.png`.
-
-**test-4 (선택)**  
-7단 탑·HW/SWComponent 등 구조 스트레스 케이스 회귀 확인. 권장: `docs/test-4-overview.png`.
-
-위 파일을 추가한 뒤, 각 항목 아래에 `![캡션](docs/파일명.png)` 한 줄씩 붙이면 이 영역이 스냅샷 갤러리가 됩니다.
+<img width="736" height="268" alt="image" src="https://github.com/user-attachments/assets/47afa578-3148-41fb-a0d9-fefcf2b452d2" />
+**test-9 (nested spec 크롬)**  
+`SCADA`⊂`GridController` — 헤더 🔼, `SCADA`→`GridController` 상속선 없음, `SCADA` 선택 시 부모 하이라이트가 보이는 화면. 권장: `docs/test-9-scada.png`.
+<img width="458" height="550" alt="스크린샷 2026-05-20 221933" src="https://github.com/user-attachments/assets/e1a0e89e-5fa8-463a-9c86-2ade0d647ff0" />
 
 ---
 
