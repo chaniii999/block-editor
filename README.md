@@ -32,6 +32,26 @@ npm install && npm run build
 
 ---
 
+## 스크린샷 스냅샷
+
+제출·리뷰용 화면 캡처는 저장소 **`docs/`** 폴더에 PNG(또는 JPG)로 넣고, 이 절 아래에 마크다운 이미지 링크를 추가하면 됩니다. GitHub README에 보이려면 **이미지 파일을 git에 커밋·푸시**해야 합니다. (경로는 루트 `README.md` 기준, 예: `docs/test-1-after.png` → `![설명](docs/test-1-after.png)`.)
+
+**test-1 (필수, README As-Is 대비)**  
+fork 전 As-Is는 [`README.SELab.md`](README.SELab.md)의 `docs/image.png`와 동일한 화면을 Before로 두고, 개선 후는 같은 `test-1.json`을 F5로 연 화면을 After로 캡처합니다. 권장 파일명: `docs/test-1-before.png`, `docs/test-1-after.png`.
+
+**test-9 (nested spec 크롬)**  
+`SCADA`⊂`GridController` — 헤더 🔼, `SCADA`→`GridController` 상속선 없음, `SCADA` 선택 시 부모 하이라이트가 보이는 화면. 권장: `docs/test-9-scada.png`.
+
+**test-8 (선택, 알려진 한계 확인)**  
+`Gateway` 다중 spec 부모 UI는 **미해결(보류)** 상태임을 보여 주는 참고용. 권장: `docs/test-8-gateway.png`.
+
+**test-4 (선택)**  
+7단 탑·HW/SWComponent 등 구조 스트레스 케이스 회귀 확인. 권장: `docs/test-4-overview.png`.
+
+위 파일을 추가한 뒤, 각 항목 아래에 `![캡션](docs/파일명.png)` 한 줄씩 붙이면 이 영역이 스냅샷 갤러리가 됩니다.
+
+---
+
 ## 2. README 8항목 — fork 후 달성도
 
 | # | README 기준 | fork 후 | 비고 |
@@ -194,8 +214,8 @@ media/editor/config/displaySettings.js
 
 ## 9. 제출·데모 시 한 줄
 
-- **Before:** [`README.SELab.md`](README.SELab.md) · `docs/image.png` As-Is (`test-1`).
-- **After:** F5 `test-1` 스크린샷 + **`test-9`** `SCADA` 선택(🔼·상속선 없음·`GridController` 청록 HL·연관 보라).
+- **Before / After:** 위 [스크린샷 스냅샷](#스크린샷-스냅샷) · As-Is는 [`README.SELab.md`](README.SELab.md) · `docs/image.png` (`test-1`).
+- **데모:** F5 **`test-9`** — `SCADA` 선택(🔼·상속선 없음·`GridController` 청록 HL·연관 보라).
 - **한계:** test-8 `Gateway` 다중 spec 부모 UI는 **의도적 보류** — `07_마무리` §2 참고.
 
 문의·면접 데모: **test-9 + `BatteryStorage` 선택** → 연관(보라)·연결(청록)·상속(파랑, nested는 선 없음)을 한 화면에서 설명하기 좋습니다.
