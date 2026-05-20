@@ -3,6 +3,7 @@
 SELab Block Editor 미니 과제를 **fork한 뒤** [README.SELab.md](README.SELab.md) 기준으로 직교·레이아웃·연관 UI·선택 피드백을 개선한 내용입니다. (GitHub 저장소 메인 화면용)
 
 - **SELab 과제 원문·8항목·As-Is:** [`README.SELab.md`](README.SELab.md)
+- **보조 문서 (`p_docs/`):** 아래 [§5 `p_docs` 안내](#5-p_docs-안내)
 - **마무리 스냅샷·미해결:** [`p_docs/07_마무리_및_알려진_한계.md`](p_docs/07_마무리_및_알려진_한계.md)
 - **작업 이력:** [`work-log.md`](work-log.md)
 
@@ -105,18 +106,32 @@ npm install && npm run build
 
 상세·롤백 목록: [`p_docs/07_마무리_및_알려진_한계.md`](p_docs/07_마무리_및_알려진_한계.md) §2.
 
-**문서만 있는 규칙:** `p_docs/커스텀_규칙.md` 4·5 (Gateway Port·외부 우회 도로) — 코드 미구현.
+**문서만 있는 규칙:** [`p_docs/06_커스텀_규칙.md`](p_docs/06_커스텀_규칙.md) 4·5 (Gateway Port·외부 우회 도로) — 코드 미구현.
 
 ---
 
-## 5. 문서·검증
+## 5. `p_docs` 안내
 
-| 문서 | 내용 |
-|------|------|
-| `p_docs/레이아웃_엣지_총괄규칙.md` | 코드 전수 규칙 (마무리 시점) |
-| `p_docs/03_테스트_로드맵.md` | test-1~10·갭·Phase |
-| `p_docs/07_마무리_및_알려진_한계.md` | 마무리·보류 |
-| `work-log.md` | 일별 diff·커밋 메시지 안 |
+`p_docs/`는 fork 이후 분석·플랜·코드 규칙·테스트·마무리를 **번호 순**으로 모아 둔 보조 문서입니다. 과제 **수용 기준**은 [`README.SELab.md`](README.SELab.md)이고, 여기 문서는 구현·검증·제출 설명용입니다.
+
+| 문서 | 한 줄 설명 | 누가 보면 좋은지 |
+|------|------------|------------------|
+| [`00_프로젝트_초기_분석_보고서.md`](p_docs/00_프로젝트_초기_분석_보고서.md) | fork 직후 As-Is 가설, 모듈 역할, README 8항목과 코드 축 연결 | 전체 구조를 처음 파악할 때 |
+| [`01_프로젝트_간단지도.md`](p_docs/01_프로젝트_간단지도.md) | `src/`·`media/editor/` 디렉터리·JSON→웹뷰 데이터 흐름 | 손댈 파일 위치를 찾을 때 |
+| [`02_과제_해결_플랜.md`](p_docs/02_과제_해결_플랜.md) | README 기준 단계별 작업 순서·제출 전 체크리스트 | 작업 계획·마일스톤 정리 |
+| [`03_테스트_로드맵.md`](p_docs/03_테스트_로드맵.md) | `test-1`~`10` 역할, 갭 표, Phase·스모크 순서 | 테스트 JSON별로 무엇을 볼지 |
+| [`04_README과제_코드맵과용어집.md`](p_docs/04_README과제_코드맵과용어집.md) | README 8항목 ↔ 파일 매핑, SysML·mxGraph 용어집 | 비개발자·면접 설명용 |
+| [`05_레이아웃_엣지_총괄규칙.md`](p_docs/05_레이아웃_엣지_총괄규칙.md) | ELK·`bddLayout`·`specEdgeRouter`·렌더 파이프라인 **코드 전수** 규칙 | 선·박스 동작을 코드와 대조할 때 |
+| [`06_커스텀_규칙.md`](p_docs/06_커스텀_규칙.md) | 엣지·상속·포함 **의도 규칙**(1·3번 구현, 4·5번 미구현) | 왜 이렇게 그렸는지 정책 설명 |
+| [`07_마무리_및_알려진_한계.md`](p_docs/07_마무리_및_알려진_한계.md) | **1차 마무리** 반영 목록, 다중 부모 UI **보류**, nested spec 크롬 | 제출·한계·롤백 이력 |
+
+**읽는 순서 (권장):** `01` → `04` 또는 `05` → `03` → `07`. 배경은 `00`, 작업 순서는 `02`.
+
+**코드 밖:** [`work-log.md`](work-log.md) — 일별 수정·커밋 메시지 안.
+
+---
+
+## 6. 검증
 
 ```bash
 npm run build
@@ -135,7 +150,7 @@ node scripts/check-bdd-postlayout.mjs   # 있을 때
 
 ---
 
-## 6. 주요 변경 파일 맵
+## 7. 주요 변경 파일 맵
 
 ```text
 src/panel/BlockModelBuilder.js     association 분리, nestedSpecChrome, __in__ 복제(모델)
@@ -159,7 +174,7 @@ media/editor/config/displaySettings.js
 
 ---
 
-## 7. 커밋 이력 (fork 후, 최신순)
+## 8. 커밋 이력 (fork 후, 최신순)
 
 | 커밋 | 요지 |
 |------|------|
@@ -177,7 +192,7 @@ media/editor/config/displaySettings.js
 
 ---
 
-## 8. 제출·데모 시 한 줄
+## 9. 제출·데모 시 한 줄
 
 - **Before:** [`README.SELab.md`](README.SELab.md) · `docs/image.png` As-Is (`test-1`).
 - **After:** F5 `test-1` 스크린샷 + **`test-9`** `SCADA` 선택(🔼·상속선 없음·`GridController` 청록 HL·연관 보라).
