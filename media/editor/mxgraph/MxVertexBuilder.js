@@ -30,6 +30,57 @@
         return { nodeId, hasAssociations: true };
     }
 
+    function parseStyleNumber(style, key, fallback) {
+        const re = new RegExp('(?:^|;)' + key + '=([^;]+)');
+        const m = String(style || '').match(re);
+        if (!m) {
+            return fallback;
+        }
+        const v = parseFloat(m[1]);
+        return Number.isFinite(v) ? v : fallback;
+    }
+
+    function applyLabelFoldFit(finalLabel, style, node, cellWidth) {
+        const labelFit = ns.MxGraph.labelFit;
+        if (!finalLabel || !cellWidth || !labelFit?.fitLabelInNodeBox) {
+            return finalLabel;
+        }
+        const willFold = ns.MxGraph.fold?.isFoldTarget?.(node);
+        const assocOpts = getAssociationLabelOptions(node);
+        const DS = ns.Editor?.config?.displaySettings;
+        const nl = DS?.nodeLabel || {};
+        const typeLower = String(node.type || node.kind || '').toLowerCase();
+        const isPackage = typeLower === 'package' || typeLower === 'librarypackage';
+        const pad = nl.headerPaddingX ?? 8;
+        const font = `${DS?.font?.size ?? 13}px ${DS?.font?.family ?? 'sans-serif'}`;
+        const fitOpts = {
+            hasFold: !!willFold,
+            hasAssocLink: !!assocOpts.hasAssociations,
+            spacingLeft: parseStyleNumber(style, 'spacingLeft', isPackage ? pad : pad),
+            spacingRight: parseStyleNumber(style, 'spacingRight', pad),
+            font,
+        };
+
+        if (node._collapsed && labelFit.truncatePlainForCollapsed) {
+            const plain = String(finalLabel).replace(/<[^>]*>/g, '').replace(/\n/g, ' ').trim();
+            return labelFit.truncatePlainForCollapsed(plain, cellWidth, fitOpts);
+        }
+        return labelFit.fitLabelInNodeBox(finalLabel, cellWidth, fitOpts);
+    }
+
+    function ensureFoldSpacingRight(style, node) {
+        if (!ns.MxGraph.fold?.isFoldTarget?.(node)) {
+            return style;
+        }
+        if (/(?:^|;)spacingRight=/.test(style)) {
+            return style;
+        }
+        const reserve = ns.MxGraph.labelFit?.getFoldReservePx?.()
+            ?? ns.MxGraph.fold?.getButtonReservePx?.()
+            ?? 33;
+        return style + ';spacingRight=' + reserve;
+    }
+
     /**
      * 주석 본문을 mxGraph 라벨에 맞게 정규화
      * - 단일 줄바꿈은 공백으로 변경
@@ -352,18 +403,9 @@
             localY = typeof node.relativeY === 'number' ? node.relativeY : y;
         }
 
-        // collapsed 상태에서 라벨 ellipsis 처리
-        let finalLabel = label;
-        if (node._collapsed) {
-            const truncate = ns.MxGraph.fold?.truncateLabel;
-            if (typeof truncate === 'function') {
-                finalLabel = truncate(label, 12);
-            } else {
-                // fallback: 직접 truncate
-                const plainText = String(label || '').replace(/<[^>]*>/g, '').replace(/\n/g, ' ').trim();
-                finalLabel = plainText.length > 12 ? plainText.substring(0, 12) + '...' : plainText;
-            }
-        }
+        // 접기 버튼·연관 링크와 겹치지 않도록 라벨 폭 맞춤
+        let finalLabel = applyLabelFoldFit(label, style, node, override.width);
+        style = ensureFoldSpacingRight(style, node);
 
         // html=1 모드에서 overflow=fill인 경우 padding 처리
         if (finalLabel && style.includes('html=1') && style.includes('overflow=fill')) {

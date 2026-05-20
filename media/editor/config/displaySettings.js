@@ -36,6 +36,18 @@
             showStereotypes: false,        // BDD: «part def» 등 스테레오타입 미표시
         },
 
+        // ─── 노드 헤더 라벨 vs 접기·연관 링크 (MxLabelFit · MxFoldManager) ──
+        nodeLabel: {
+            foldOverlayOffsetX: 13,        // mxCellOverlay 우측 여백 (MxFoldManager mxPoint)
+            foldIconSize: 16,
+            foldGapPx: 4,                // 라벨 끝 ~ 버튼 사이
+            foldButtonReservePx: 33,       // offset + icon + gap
+            assocLinkMarginPx: 5,          // MxAssociationLink margin-left
+            assocLinkIconPx: 14,           // 🔗 추정 폭
+            assocLinkReservePx: 19,
+            headerPaddingX: 8,
+        },
+
         // ─── 노드 사전계산 크기 (layout.js precomputeNodeSizes) ──
         nodePrecompute: {
             minWidth: 120,                 // 노드 최소 폭

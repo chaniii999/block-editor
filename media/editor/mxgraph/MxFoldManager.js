@@ -14,6 +14,26 @@
     // collapse된 노드 ID Set
     const _collapsedSet = new Set();
 
+    function getNodeLabelSettings() {
+        return ns.Editor?.config?.displaySettings?.nodeLabel || {};
+    }
+
+    function getFoldIconSize() {
+        return getNodeLabelSettings().foldIconSize ?? 16;
+    }
+
+    function getFoldOverlayOffsetX() {
+        return getNodeLabelSettings().foldOverlayOffsetX ?? 13;
+    }
+
+    function getButtonReservePx() {
+        const nl = getNodeLabelSettings();
+        if (nl.foldButtonReservePx != null) {
+            return nl.foldButtonReservePx;
+        }
+        return getFoldOverlayOffsetX() + getFoldIconSize() + (nl.foldGapPx ?? 4);
+    }
+
     // 버튼 SVG (expand: ▼, collapse: ▶)
     const FOLD_ICON_SIZE = 16;
     const FOLD_ICON_STROKE = '#b7b7b7';
@@ -216,12 +236,13 @@
         const collapsed = _collapsedSet.has(cellId);
         const iconSrc = collapsed ? ICON_COLLAPSED : ICON_EXPANDED;
 
+        const iconSize = getFoldIconSize();
         const overlay = new mxCellOverlay(
-            new mxImage(iconSrc, FOLD_ICON_SIZE, FOLD_ICON_SIZE),
+            new mxImage(iconSrc, iconSize, iconSize),
             collapsed ? 'Expand' : 'Collapse',
             mxConstants.ALIGN_RIGHT,
             mxConstants.ALIGN_TOP,
-            new mxPoint(-13, 18)
+            new mxPoint(-getFoldOverlayOffsetX(), 18)
         );
         overlay._isFoldOverlay = true;
         overlay.cursor = 'pointer';
@@ -298,6 +319,7 @@
         attachFoldOverlays,
         registerClickHandler,
         toggleFold,
+        getButtonReservePx,
         get collapsedSet() { return _collapsedSet; }
     };
 

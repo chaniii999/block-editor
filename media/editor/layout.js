@@ -22,6 +22,19 @@
     }
   }
 
+  function elementHasAssociations(el, model) {
+    const id = String(el?.id || '');
+    if (!id) {
+      return false;
+    }
+    for (const assoc of (model?.associations || [])) {
+      if (String(assoc?.source) === id || String(assoc?.target) === id) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function precomputeNodeSizes(model) {
     const elements = Array.isArray(model?.elements) ? model.elements : [];
     const edges = Array.isArray(model?.connections) ? model.connections : (Array.isArray(model?.edges) ? model.edges : []);
@@ -269,8 +282,16 @@
         // 헤더와 compartment 중 더 넓은 쪽 선택
         maxContentWidth = Math.max(maxContentWidth, headerWidth);
         
-        // 노드 폭 = 최대 컨텐츠 폭 + 패딩 (최소/최대 제한)
-        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX));
+        let labelChromeReserve = 0;
+        if (ns.MxGraph?.fold?.isFoldTarget?.(el)) {
+          labelChromeReserve += DS?.nodeLabel?.foldButtonReservePx ?? 33;
+        }
+        if (elementHasAssociations(el, model)) {
+          labelChromeReserve += DS?.nodeLabel?.assocLinkReservePx ?? 19;
+        }
+
+        // 노드 폭 = 최대 컨텐츠 폭 + 패딩 + 접기/연관 UI 여유 (최소/최대 제한)
+        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX + labelChromeReserve));
         
         // 이제 확정된 노드 폭으로 줄바꿈 수행
         const availableWidth = nodeWidth - padX;
@@ -299,8 +320,16 @@
         // 헤더와 compartment 중 더 넓은 쪽 선택
         maxContentWidth = Math.max(maxContentWidth, headerWidth);
         
-        // 노드 폭 = 최대 컨텐츠 폭 + 패딩 (최소/최대 제한)
-        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX));
+        let labelChromeReserve = 0;
+        if (ns.MxGraph?.fold?.isFoldTarget?.(el)) {
+          labelChromeReserve += DS?.nodeLabel?.foldButtonReservePx ?? 33;
+        }
+        if (elementHasAssociations(el, model)) {
+          labelChromeReserve += DS?.nodeLabel?.assocLinkReservePx ?? 19;
+        }
+
+        // 노드 폭 = 최대 컨텐츠 폭 + 패딩 + 접기/연관 UI 여유 (최소/최대 제한)
+        nodeWidth = Math.max(minWidth, Math.min(maxWidth, maxContentWidth + padX + labelChromeReserve));
       }
 
       el.width = nodeWidth;
