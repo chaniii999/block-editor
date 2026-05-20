@@ -5,6 +5,40 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-20 — 하이라이트 엣지 z-order 최상단
+
+### 지시
+
+> 노드 선택 시 하이라이트된 엣지가 다른 엣지·노드 **아래**에 그려져 끊겨 보임 → 하이라이트 상태에서 **최상위 레이어**로 표시
+
+### 수정
+
+| 파일 | 변경 요지 |
+|------|------------|
+| `media/editor/mxgraph/MxNeighborHighlight.js` | `applyHighlightZOrder`: 비하이라이트 셀·엣지 `orderCells(true)` 뒤로, 하이라이트 노드 `false` 앞, 하이라이트 엣지는 **한 장씩** `orderCells(false)`로 맨 위; 선택 해제 시 `savedZOrder` 복원 |
+
+### 개선 내용
+
+- mxGraph `orderCells(back, cells)`: **`back===true` → 뒤**, **`false` → 앞** (이전 혼동 방지).
+- 엣지끼리 겹침(test-2 Polygon 등): 회색 비하이라이트 엣지가 청록 하이라이트 엣지 위를 가로지르던 문제 → 하이라이트 엣지만 루트·재귀 엣지 목록에서 최종 front.
+- `renderModel` 시 `neighborHighlight.clear`와 동일하게 z-order도 `restoreZOrder`로 되돌림.
+
+### 확인
+
+- `npm run build` 통과
+- F5: 노드 선택 시 연결·상속 하이라이트 엣지가 다른 엣지 위에 보이는지
+
+### 커밋 메시지 (안)
+
+```
+fix(mxgraph): 하이라이트 엣지를 선택 시 최상위 z-order로 표시
+
+- MxNeighborHighlight: orderCells로 비하이라이트 뒤·하이라이트 엣지 맨 앞
+- 선택 해제 시 셀 순서 복원(savedZOrder)
+```
+
+---
+
 ## 2026-05-20 — 노드 헤더 폭(이름+🔗+접기) 사전계산
 
 ### 지시

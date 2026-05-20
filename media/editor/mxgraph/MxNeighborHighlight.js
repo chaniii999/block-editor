@@ -39,6 +39,7 @@
 
     let lastHighlighted = [];
     const styleBackup = new Map();
+    let savedZOrder = null;
 
     function log(prefix, msg) {
         try {
@@ -270,6 +271,144 @@
         return items;
     }
 
+    function getChildIndex(model, parent, child) {
+        if (!parent || !child) {
+            return -1;
+        }
+        const count = model.getChildCount(parent);
+        for (let i = 0; i < count; i++) {
+            if (model.getChildAt(parent, i) === child) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function captureZOrder(graph) {
+        if (savedZOrder) {
+            return;
+        }
+        const model = graph.getModel();
+        const root = graph.getDefaultParent?.();
+        if (!root) {
+            return;
+        }
+        const cells = graph.getChildCells(root, true, true, true) || [];
+        const entries = [];
+        for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i];
+            const parent = model.getParent(cell);
+            if (!parent) {
+                continue;
+            }
+            const idx = getChildIndex(model, parent, cell);
+            if (idx >= 0) {
+                entries.push({ cell, parent, index: idx });
+            }
+        }
+        savedZOrder = entries;
+    }
+
+    function restoreZOrder(graph) {
+        if (!savedZOrder || savedZOrder.length === 0) {
+            savedZOrder = null;
+            return;
+        }
+        const model = graph.getModel();
+        model.beginUpdate();
+        try {
+            const sorted = savedZOrder.slice().sort(function sortRestore(a, b) {
+                if (a.parent !== b.parent) {
+                    return 0;
+                }
+                return b.index - a.index;
+            });
+            for (let i = 0; i < sorted.length; i++) {
+                const entry = sorted[i];
+                if (!entry.cell || !model.contains(entry.cell)) {
+                    continue;
+                }
+                if (model.getParent(entry.cell) === entry.parent) {
+                    model.add(entry.parent, entry.cell, entry.index);
+                }
+            }
+        } catch (err) {
+            log('restoreZ', err);
+        } finally {
+            model.endUpdate();
+        }
+        savedZOrder = null;
+    }
+
+    /**
+     * mxGraph orderCells(back, cells): back===true → 뒤, back===false → 앞
+     * 하이라이트 엣지는 모든 비하이라이트 엣지·노드보다 위에 그리기
+     */
+    function applyHighlightZOrder(graph, targets) {
+        if (!graph || typeof graph.orderCells !== 'function' || !targets || targets.length === 0) {
+            return;
+        }
+        captureZOrder(graph);
+        const model = graph.getModel();
+        const root = graph.getDefaultParent?.();
+        if (!root) {
+            return;
+        }
+
+        const hlSet = new Set();
+        const hlVertices = [];
+        const hlEdges = [];
+        for (let i = 0; i < targets.length; i++) {
+            const t = targets[i];
+            const cell = t.cell;
+            if (!cell || !model.contains(cell)) {
+                continue;
+            }
+            hlSet.add(cell);
+            if (t.isEdge || model.isEdge(cell)) {
+                hlEdges.push(cell);
+            } else if (model.isVertex(cell)) {
+                hlVertices.push(cell);
+            }
+        }
+
+        const allEdges = graph.getChildCells(root, false, true, true) || [];
+        const otherEdges = [];
+        for (let e = 0; e < allEdges.length; e++) {
+            if (!hlSet.has(allEdges[e])) {
+                otherEdges.push(allEdges[e]);
+            }
+        }
+
+        const allCells = graph.getChildCells(root, true, true, true) || [];
+        const otherCells = [];
+        for (let c = 0; c < allCells.length; c++) {
+            if (!hlSet.has(allCells[c])) {
+                otherCells.push(allCells[c]);
+            }
+        }
+
+        model.beginUpdate();
+        try {
+            if (otherCells.length > 0) {
+                graph.orderCells(true, otherCells);
+            }
+            if (otherEdges.length > 0) {
+                graph.orderCells(true, otherEdges);
+            }
+            if (hlVertices.length > 0) {
+                graph.orderCells(false, hlVertices);
+            }
+            for (let f = 0; f < hlEdges.length; f++) {
+                graph.orderCells(false, [hlEdges[f]]);
+            }
+        } catch (err) {
+            log('zOrder', err);
+        } finally {
+            model.endUpdate();
+        }
+    }
+
     function clearFocusHighlight(graph) {
         const model = graph.getModel();
         model.beginUpdate();
@@ -291,6 +430,7 @@
         }
         lastHighlighted = [];
         styleBackup.clear();
+        restoreZOrder(graph);
         try {
             graph.view.validate();
         } catch (_) {}
@@ -379,9 +519,14 @@
         } finally {
             model.endUpdate();
         }
+        applyHighlightZOrder(graph, targets);
         try {
-            graph.view.validate();
-        } catch (_) {}
+            graph.view.validate(true);
+        } catch (_) {
+            try {
+                graph.view.validate();
+            } catch (__) {}
+        }
     }
 
     function handleSelectionChange(graph) {
