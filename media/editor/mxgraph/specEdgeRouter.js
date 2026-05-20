@@ -46,6 +46,83 @@
         return Math.abs(a - b) < ALIGN_EPS;
     }
 
+    /** 연속 동일 좌표 제거 */
+    function dedupeOrthoPoints(points) {
+        if (!points || points.length < 2) {
+            return points;
+        }
+        const out = [points[0]];
+        for (let i = 1; i < points.length; i++) {
+            const p = points[i];
+            const q = out[out.length - 1];
+            if (Math.abs(p.x - q.x) > ALIGN_EPS || Math.abs(p.y - q.y) > ALIGN_EPS) {
+                out.push(p);
+            }
+        }
+        return out.length >= 2 ? out : points;
+    }
+
+    /**
+     * 상속 N→S: 마지막 구간이 부모 S면(y=entry.y) 위에서 수평으로 미끄는 경우 제거
+     * — (p1.x, entry.y+stub) → (entry.x, entry.y+stub) → entry 로 수직 진입
+     */
+    function sanitizeNsSpecPathNoFaceRide(path) {
+        if (!path || path.length < 3) {
+            return path;
+        }
+        const stub = APPROACH_PAD + 10;
+        const out = path.slice();
+        const n = out.length;
+        const entry = out[n - 1];
+        const p2 = out[n - 2];
+        if (!entry || !p2) {
+            return path;
+        }
+        const ridesSFace =
+            near(p2.y, entry.y) && !near(p2.x, entry.x);
+        if (!ridesSFace) {
+            return path;
+        }
+        out.pop();
+        out.pop();
+        const p1 = out[out.length - 1];
+        const anchorX = p1 ? p1.x : p2.x;
+        const yStub = entry.y + stub;
+        out.push({ x: anchorX, y: yStub });
+        out.push({ x: entry.x, y: yStub });
+        out.push(entry);
+        return dedupeOrthoPoints(out);
+    }
+
+    function clampYChForNsEntry(entrySide, entryPt, exitSide, exitPt, yCh) {
+        let y = Number(yCh);
+        if (!Number.isFinite(y)) {
+            return yCh;
+        }
+        if (entrySide !== 'S' || exitSide !== 'N' || !entryPt || !exitPt) {
+            return y;
+        }
+        const minBelow = entryPt.y + APPROACH_PAD + 4;
+        const maxAbove = exitPt.y - APPROACH_PAD - 4;
+        if (exitPt.y <= entryPt.y + 2 * APPROACH_PAD) {
+            if (y <= entryPt.y + ALIGN_EPS) {
+                return minBelow;
+            }
+            return y;
+        }
+        if (maxAbove > minBelow + ALIGN_EPS) {
+            y = Math.max(minBelow, Math.min(maxAbove, y));
+        } else {
+            if (y <= entryPt.y + ALIGN_EPS) {
+                y = minBelow;
+            }
+            if (y >= exitPt.y - ALIGN_EPS) {
+                y = maxAbove;
+            }
+        }
+        return y;
+    }
+
     function clamp01(v) {
         return Math.max(0, Math.min(1, v));
     }
@@ -395,6 +472,7 @@
                 yCh = blockB.y - APPROACH_PAD;
             }
         }
+        yCh = clampYChForNsEntry('S', entryPt, 'N', exitPt, yCh);
         if (near(exitPt.x, entryPt.x)) {
             return {
                 path: [exitPt, entryPt],
@@ -481,7 +559,13 @@
                 entryFrac,
             };
         }
-        const yCh = (tgtB.y + tgtB.h + srcB.y) / 2;
+        const yCh = clampYChForNsEntry(
+            'S',
+            entryPt,
+            'N',
+            exitPt,
+            (tgtB.y + tgtB.h + srcB.y) / 2,
+        );
         return {
             path: [
                 exitPt,
@@ -514,14 +598,20 @@
             if (near(exitPt.x, entryPt.x)) {
                 return { path: [exitPt, entryPt], exitSide, entrySide };
             }
-            const yCh = resolveVerticalChannelY(
-                exitSide,
+            const yCh = clampYChForNsEntry(
                 entrySide,
-                srcB,
-                tgtB,
-                exitPt,
                 entryPt,
-                obstacleCtx,
+                exitSide,
+                exitPt,
+                resolveVerticalChannelY(
+                    exitSide,
+                    entrySide,
+                    srcB,
+                    tgtB,
+                    exitPt,
+                    entryPt,
+                    obstacleCtx,
+                ),
             );
             return {
                 path: [
@@ -559,14 +649,20 @@
             };
         }
         if (exitVert) {
-            const yCh = resolveVerticalChannelY(
-                exitSide,
+            const yCh = clampYChForNsEntry(
                 entrySide,
-                srcB,
-                tgtB,
-                exitPt,
                 entryPt,
-                obstacleCtx,
+                exitSide,
+                exitPt,
+                resolveVerticalChannelY(
+                    exitSide,
+                    entrySide,
+                    srcB,
+                    tgtB,
+                    exitPt,
+                    entryPt,
+                    obstacleCtx,
+                ),
             );
             return {
                 path: [
@@ -740,18 +836,31 @@
         if (!pathAbs || pathAbs.length < 2) return false;
 
         const model = graph.getModel();
-        const start = pathAbs[0];
-        const end = pathAbs[pathAbs.length - 1];
+        let work = dedupeOrthoPoints(pathAbs.slice());
+        if (exitSide === 'N' && entrySide === 'S') {
+            work = sanitizeNsSpecPathNoFaceRide(work);
+        }
+        const start = work[0];
+        const end = work[work.length - 1];
         const ptOrigin = edgeControlOrigin(graph, edgeCell);
-        let interiorAbs = pathAbs.slice(1, -1);
+        let interiorAbs = work.slice(1, -1);
         if (
-            pathAbs.length === 2 &&
+            work.length === 2 &&
             exitSide === 'N' &&
             entrySide === 'S' &&
             !near(start.x, end.x) &&
             !near(start.y, end.y)
         ) {
-            interiorAbs = [makePoint(start.x, end.y)];
+            const pb = end.y;
+            const ct = start.y;
+            const yCh = clampYChForNsEntry(
+                'S',
+                end,
+                'N',
+                start,
+                ct > pb + ALIGN_EPS ? (pb + ct) / 2 : pb + APPROACH_PAD + 6,
+            );
+            interiorAbs = [makePoint(start.x, yCh), makePoint(end.x, yCh)];
         }
         const relMid = interiorAbs.map((p) =>
             makePoint(p.x - ptOrigin.x, p.y - ptOrigin.y),
@@ -904,6 +1013,10 @@
             if (hitsAfter <= hitsBefore) {
                 path = refined;
             }
+        }
+
+        if (built.exitSide === 'N' && built.entrySide === 'S') {
+            path = sanitizeNsSpecPathNoFaceRide(dedupeOrthoPoints(path));
         }
 
         applyExplicitRoute(

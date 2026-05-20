@@ -824,6 +824,41 @@ feat(ui): 연관관계 노드에 링크 아이콘·목록 모달 추가
 
 ---
 
+## 2026-05-20 — spec 상속 엣지 S면 수평 미끄럼 제거
+
+### 지시
+
+> 엣지가 노드 옆면(특히 부모 S면)을 타고 이동하는 현상 제거. **수직으로 출발·도착**하도록.
+
+### 수정 (스테이징)
+
+| 파일 | 변경 |
+|------|------|
+| `media/editor/mxgraph/specEdgeRouter.js` | `dedupeOrthoPoints`, `clampYChForNsEntry`, `sanitizeNsSpecPathNoFaceRide` — N→S 통로 `yCh`를 진입면 아래로 고정, 마지막 수평 면주행 시 stub로 교체 |
+| 동일 | `buildSpecPath` / `buildColumnSpecPath` / `buildRootToNestedTargetPath`에 `yCh` 클램프 |
+| 동일 | `applyExplicitRoute`: 전 경로 sanitize, 2점 보간 시 `(start.x,end.y)` 단일 꺾임 제거 → `(start.x,yCh),(end.x,yCh)` |
+| 동일 | `routeSpecEdge`: `refineOrthogonalPath` 직후 sanitize 한 번 더 |
+
+### 개선 내용
+
+- `segmentEdgeStyle` 명시 점에서 **부모 하단 y와 같은 높이의 긴 수평 구간**이 생기던 케이스(2점 L자·refine 결과)를 막고 **S면에는 수직으로만 붙게** 정리.
+
+### 확인
+
+- `read_lints` 통과; 확장 리로드 후 test-5 등 상속선 시각 확인 권장.
+
+### 커밋 메시지
+
+```text
+fix(mxgraph): spec N→S 엣지가 부모 면을 타지 않고 수직 진입하도록 정리
+
+- yCh를 진입면 아래·출구면 위로 클램프해 통로가 S면과 겹치지 않게 함
+- refine·2점 보간 경로에 대해 면 위 수평 구간이면 stub 꼭짓점으로 치환
+- applyExplicitRoute 진입 전 전체 경로 sanitize
+```
+
+---
+
 ## 보류·참고
 
 | 항목 | 상태 |
