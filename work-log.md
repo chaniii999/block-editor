@@ -5,6 +5,36 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-20 — spec·비spec 직교 라우팅·차선·재라우팅 정리
+
+### 지시
+
+> 커스텀 규칙(동일 쌍 뼈대 공유 / 서로 다른 쌍은 차선) 반영, test-2·test-4 관통 완화, 상속만 mx 엣지 전제로 최적화, 커밋·워크로그
+
+### 수정 (스테이징 기준)
+
+| 파일 | 변경 요지 |
+|------|------------|
+| `media/editor/mxgraph/specEdgeRouter.js` | 동일 열 2점 직선이 장애물이면 6점 우회, N→S 마지막 수직 보정·2차 refine, 장애물 없을 때 nudge 생략, 앵커 nudge 후보 중복 제거, `computeSpecRoutedPathForFracs`로 경로 계산 일원화 |
+| `media/editor/mxgraph/MxEdgeBuilder.js` | 비-spec도 동일 열 장애물 시 6점·N→S 마지막 수직 보정(히트 시만), `rerouteAllEdges` 단일 DFS로 spec·비-spec 처리, `assignSpatiallyOverlappingSpecLaneOffsets`·좁은 소스/타깃 시 N·S 앵커 이중 분산 |
+| `media/editor/config/displaySettings.js` | `bdd.specLaneProximityPx`(기본 22) — 근접 spec 차선 그룹 판정 |
+| `p_docs/레이아웃_엣지_총괄규칙.md` | `rerouteAllEdges` 한 번 DFS 설명 갱신 |
+| `p_docs/커스텀_규칙.md` | 규칙 3 구현 위치·설정 키 한 줄 |
+
+### 개선 내용
+
+- test-2 Ellipse→Drawable·test-4 HW/SW 등 **중간 노드 관통** 완화(직선 단축 제거 + 우회 + 앵커 탐색).
+- **커스텀 규칙 1**: 동일 `(source,target)` spec 다중은 spatial 차선에서 제외(뼈대 공유 유지).
+- **커스텀 규칙 3**: 출발·도착 중심이 가까운 **서로 다른 쌍**에 `specLaneOffsetPx` 차선; 같은 타깃/소스로 모이는데 가로 간격이 좁으면 N·S 종단 분산 강화.
+- 재라우팅 **그래프 순회 1회**로 비용 축소(상속만 엣지인 경우에도 비-spec 경로는 그대로 두되 호출 구조 단순화).
+
+### 확인
+
+- `npm run build` 통과
+- test-2·test-4 상속 선·겹침 수동 확인 권장
+
+---
+
 ## 2026-05-16 — 브랜치 정리
 
 ### 지시

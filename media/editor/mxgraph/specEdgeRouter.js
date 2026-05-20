@@ -94,6 +94,77 @@
         return dedupeOrthoPoints(out);
     }
 
+    /**
+     * 상속 N→S 4점(┐┘)에서 마지막 수직(채널→S면)이 장애물과 겹칠 때 —
+     * pickVerticalChannelX로 진입 열을 옆 통로로 돌림 (test-2·test-4)
+     */
+    function fixSpecNsFourPointLastVerticalThroughObstacles(
+        path,
+        exitSide,
+        entrySide,
+        obstacleCtx,
+    ) {
+        const obs = obstacleCtx?.obstacles;
+        const buf = obstacleCtx?.buffer;
+        const util = getEdgeObstacleUtil();
+        if (
+            !path ||
+            path.length !== 4 ||
+            exitSide !== 'N' ||
+            entrySide !== 'S' ||
+            !obs?.length ||
+            !util?.pickVerticalChannelX ||
+            !util.countPathHits
+        ) {
+            return path;
+        }
+        const p0 = path[0];
+        const p1 = path[1];
+        const p2 = path[2];
+        const p3 = path[3];
+        if (!p0 || !p1 || !p2 || !p3) {
+            return path;
+        }
+        if (
+            !near(p0.x, p1.x) ||
+            !near(p1.y, p2.y) ||
+            !near(p2.x, p3.x)
+        ) {
+            return path;
+        }
+        const hitsLast = util.countPathHits([p2, p3], obs, buf);
+        if (hitsLast === 0) {
+            return path;
+        }
+        const yMin = Math.min(p2.y, p3.y);
+        const yMax = Math.max(p2.y, p3.y);
+        const candidates = [];
+        for (const x of [p3.x, p2.x, p1.x, p0.x]) {
+            if (Number.isFinite(x)) {
+                candidates.push(x);
+            }
+        }
+        const clearX = util.pickVerticalChannelX(
+            candidates,
+            yMin,
+            yMax,
+            obs,
+            buf,
+            p3.x,
+        );
+        if (near(clearX, p3.x)) {
+            return path;
+        }
+        const stub = APPROACH_PAD + 10;
+        const approachFromBelow = p1.y > p3.y + ALIGN_EPS;
+        const yStub = approachFromBelow ? p3.y + stub : p3.y - stub;
+        const mid = makePoint(clearX, p1.y);
+        const bend = makePoint(clearX, yStub);
+        const pre = makePoint(p3.x, yStub);
+        const out = dedupeOrthoPoints([p0, p1, mid, bend, pre, p3]);
+        return out.length >= 4 ? out : path;
+    }
+
     function clampYChForNsEntry(entrySide, entryPt, exitSide, exitPt, yCh) {
         let y = Number(yCh);
         if (!Number.isFinite(y)) {
@@ -595,7 +666,17 @@
         const entryVert = entrySide === 'N' || entrySide === 'S';
 
         if (exitVert && entryVert) {
-            if (near(exitPt.x, entryPt.x)) {
+            const util = getEdgeObstacleUtil();
+            const obs = obstacleCtx?.obstacles;
+            const buf = obstacleCtx?.buffer;
+            const straight = [exitPt, entryPt];
+            const sameColumn = near(exitPt.x, entryPt.x);
+            const straightBlocked =
+                sameColumn &&
+                obs?.length &&
+                util?.countPathHits &&
+                util.countPathHits(straight, obs, buf) > 0;
+            if (sameColumn && !straightBlocked) {
                 return { path: [exitPt, entryPt], exitSide, entrySide };
             }
             const yCh = clampYChForNsEntry(
@@ -613,6 +694,44 @@
                     obstacleCtx,
                 ),
             );
+            if (sameColumn && straightBlocked && util?.pickVerticalChannelX) {
+                const ySpanMin = Math.min(exitPt.y, entryPt.y, yCh);
+                const ySpanMax = Math.max(exitPt.y, entryPt.y, yCh);
+                const candidates = [];
+                for (const xv of [exitPt.x, exitPt.x - 240, exitPt.x + 240]) {
+                    if (Number.isFinite(xv)) {
+                        candidates.push(xv);
+                    }
+                }
+                const clearX = util.pickVerticalChannelX(
+                    candidates,
+                    ySpanMin,
+                    ySpanMax,
+                    obs,
+                    buf,
+                    exitPt.x,
+                );
+                const stub = APPROACH_PAD + 10;
+                const approachFromBelow = yCh > entryPt.y + ALIGN_EPS;
+                const yStub = approachFromBelow
+                    ? entryPt.y + stub
+                    : entryPt.y - stub;
+                const pathSix = dedupeOrthoPoints([
+                    exitPt,
+                    { x: exitPt.x, y: yCh },
+                    { x: clearX, y: yCh },
+                    { x: clearX, y: yStub },
+                    { x: entryPt.x, y: yStub },
+                    entryPt,
+                ]);
+                if (pathSix.length >= 4) {
+                    return {
+                        path: pathSix,
+                        exitSide,
+                        entrySide,
+                    };
+                }
+            }
             return {
                 path: [
                     exitPt,
@@ -938,38 +1057,15 @@
         return true;
     }
 
-    function routeSpecEdge(graph, edgeCell, edgeData, sourceCell, targetCell) {
-        if (!edgeCell?.source || !edgeCell?.target) return;
-        if (edgeData) delete edgeData.waypoints;
-
-        const srcB = cellBounds(graph, sourceCell);
-        const tgtB = cellBounds(graph, targetCell);
-        if (!srcB || !tgtB) return;
-
-        const sides = resolveSpecSides();
-        const st = graph.getModel().getStyle(edgeCell) || '';
-        let exitFrac = parseAnchorFrac(st, 'exit', sides.exitSide);
-        let entryFrac = parseAnchorFrac(st, 'entry', sides.entrySide);
-        const laneDx = Number(edgeData?.specLaneOffsetPx) || 0;
-        const fracs = applyLaneToFracs(
-            srcB,
-            tgtB,
-            sides.exitSide,
-            sides.entrySide,
-            exitFrac,
-            entryFrac,
-            laneDx,
-        );
-        exitFrac = fracs.exitFrac;
-        entryFrac = fracs.entryFrac;
-
-        const cfg = getEdgeObstacleCfg();
-        const extraBuf = Number(edgeData?.specObstacleBufferExtra) || 0;
-        const obstacleCtx = {
-            obstacles: collectSpecObstacles(graph, sourceCell, targetCell),
-            buffer: (Number(cfg.obstacleBuffer) || 20) + extraBuf,
-        };
-
+    function computeSpecRoutedPathForFracs(
+        srcB,
+        tgtB,
+        sides,
+        exitFrac,
+        entryFrac,
+        obstacleCtx,
+        cfg,
+    ) {
         const built = buildSpecPath(
             srcB,
             tgtB,
@@ -979,7 +1075,6 @@
             entryFrac,
             obstacleCtx,
         );
-
         let path = built.path;
         const util = getEdgeObstacleUtil();
         const hitsBefore =
@@ -1014,17 +1109,193 @@
                 path = refined;
             }
         }
-
+        if (
+            built.exitSide === 'N' &&
+            built.entrySide === 'S' &&
+            obstacleCtx.obstacles.length &&
+            util?.countPathHits
+        ) {
+            const hPreFix = util.countPathHits(
+                path,
+                obstacleCtx.obstacles,
+                obstacleCtx.buffer,
+            );
+            if (hPreFix > 0) {
+                path = fixSpecNsFourPointLastVerticalThroughObstacles(
+                    path,
+                    built.exitSide,
+                    built.entrySide,
+                    obstacleCtx,
+                );
+            }
+        }
+        const hitsAfterFix =
+            util?.countPathHits && obstacleCtx.obstacles.length
+                ? util.countPathHits(
+                      path,
+                      obstacleCtx.obstacles,
+                      obstacleCtx.buffer,
+                  )
+                : 0;
+        if (
+            hitsAfterFix > 0 &&
+            util?.refineOrthogonalPath &&
+            obstacleCtx.obstacles.length
+        ) {
+            const refined2 = util.refineOrthogonalPath(
+                path,
+                obstacleCtx.obstacles,
+                {
+                    buffer: obstacleCtx.buffer,
+                    maxExtraBends: Number(cfg.maxExtraBends) ?? 8,
+                    maxIter: Number(cfg.maxAvoidIter) || 24,
+                    maxPoints: Number(cfg.maxPathPoints) || 22,
+                },
+            );
+            const hitsR2 = util.countPathHits(
+                refined2,
+                obstacleCtx.obstacles,
+                obstacleCtx.buffer,
+            );
+            if (hitsR2 <= hitsAfterFix) {
+                path = refined2;
+            }
+        }
         if (built.exitSide === 'N' && built.entrySide === 'S') {
             path = sanitizeNsSpecPathNoFaceRide(dedupeOrthoPoints(path));
+        }
+        const hitsFinal =
+            util?.countPathHits && obstacleCtx.obstacles.length
+                ? util.countPathHits(
+                      path,
+                      obstacleCtx.obstacles,
+                      obstacleCtx.buffer,
+                  )
+                : 0;
+        return { path, built, hits: hitsFinal };
+    }
+
+    function routeSpecEdge(graph, edgeCell, edgeData, sourceCell, targetCell) {
+        if (!edgeCell?.source || !edgeCell?.target) return;
+        if (edgeData) delete edgeData.waypoints;
+
+        const srcB = cellBounds(graph, sourceCell);
+        const tgtB = cellBounds(graph, targetCell);
+        if (!srcB || !tgtB) return;
+
+        const sides = resolveSpecSides();
+        const st = graph.getModel().getStyle(edgeCell) || '';
+        let exitFrac = parseAnchorFrac(st, 'exit', sides.exitSide);
+        let entryFrac = parseAnchorFrac(st, 'entry', sides.entrySide);
+        const laneDx = Number(edgeData?.specLaneOffsetPx) || 0;
+        const fracs = applyLaneToFracs(
+            srcB,
+            tgtB,
+            sides.exitSide,
+            sides.entrySide,
+            exitFrac,
+            entryFrac,
+            laneDx,
+        );
+        exitFrac = fracs.exitFrac;
+        entryFrac = fracs.entryFrac;
+
+        const cfg = getEdgeObstacleCfg();
+        const extraBuf = Number(edgeData?.specObstacleBufferExtra) || 0;
+        const obstacleCtx = {
+            obstacles: collectSpecObstacles(graph, sourceCell, targetCell),
+            buffer: (Number(cfg.obstacleBuffer) || 20) + extraBuf,
+        };
+
+        const baseExit = exitFrac;
+        const baseEntry = entryFrac;
+
+        if (!obstacleCtx.obstacles.length) {
+            const solo = computeSpecRoutedPathForFracs(
+                srcB,
+                tgtB,
+                sides,
+                baseExit,
+                baseEntry,
+                obstacleCtx,
+                cfg,
+            );
+            applyExplicitRoute(
+                graph,
+                edgeCell,
+                solo.path,
+                solo.built.exitSide,
+                solo.built.entrySide,
+                sourceCell,
+                targetCell,
+            );
+            return;
+        }
+
+        const nd = [0, -0.12, 0.12, -0.24, 0.24];
+        const seenFrac = new Set();
+        const tryPairs = [];
+        function addFracPair(ex, en) {
+            const exC = clamp01(ex);
+            const enC = clamp01(en);
+            const key = `${exC.toFixed(5)}\t${enC.toFixed(5)}`;
+            if (seenFrac.has(key)) {
+                return;
+            }
+            seenFrac.add(key);
+            tryPairs.push({ exit: exC, entry: enC });
+        }
+        addFracPair(baseExit, baseEntry);
+        for (let i = 1; i < nd.length; i++) {
+            addFracPair(baseExit + nd[i], baseEntry);
+            addFracPair(baseExit, baseEntry + nd[i]);
+        }
+        for (const de of [-0.12, 0.12]) {
+            for (const dn of [-0.12, 0.12]) {
+                addFracPair(baseExit + de, baseEntry + dn);
+            }
+        }
+
+        let best = null;
+        let bestScore = Infinity;
+        for (const pair of tryPairs) {
+            const r = computeSpecRoutedPathForFracs(
+                srcB,
+                tgtB,
+                sides,
+                pair.exit,
+                pair.entry,
+                obstacleCtx,
+                cfg,
+            );
+            const score = r.hits * 100000 + r.path.length;
+            if (score < bestScore) {
+                bestScore = score;
+                best = r;
+            }
+            if (r.hits === 0) {
+                best = r;
+                break;
+            }
+        }
+        if (!best) {
+            best = computeSpecRoutedPathForFracs(
+                srcB,
+                tgtB,
+                sides,
+                baseExit,
+                baseEntry,
+                obstacleCtx,
+                cfg,
+            );
         }
 
         applyExplicitRoute(
             graph,
             edgeCell,
-            path,
-            built.exitSide,
-            built.entrySide,
+            best.path,
+            best.built.exitSide,
+            best.built.entrySide,
             sourceCell,
             targetCell,
         );

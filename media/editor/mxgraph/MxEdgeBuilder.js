@@ -43,6 +43,21 @@
         return Math.abs(a - b) < ALIGN_EPS;
     }
 
+    function dedupeMxOrthoPath(points) {
+        if (!points || points.length < 2) {
+            return points;
+        }
+        const out = [points[0]];
+        for (let i = 1; i < points.length; i++) {
+            const p = points[i];
+            const q = out[out.length - 1];
+            if (Math.abs(p.x - q.x) > ALIGN_EPS || Math.abs(p.y - q.y) > ALIGN_EPS) {
+                out.push(p);
+            }
+        }
+        return out.length >= 2 ? out : points;
+    }
+
     function isSpecializationHierarchyKind(kind) {
         if (!kind) return false;
         const k = String(kind).toLowerCase();
@@ -338,8 +353,18 @@
         const entryVert = entrySide === 'N' || entrySide === 'S';
 
         if (exitVert && entryVert) {
-            if (near(exitPt.x, entryPt.x)) {
-                return [exitPt, entryPt];
+            const util = getEdgeObstacleUtil();
+            const obs = obstacleCtx?.obstacles;
+            const buf = Number(obstacleCtx?.buffer) || 20;
+            const straight = [exitPt, entryPt];
+            const sameColumn = near(exitPt.x, entryPt.x);
+            const straightBlocked =
+                sameColumn &&
+                obs?.length &&
+                util?.countPathHits &&
+                util.countPathHits(straight, obs, buf) > 0;
+            if (sameColumn && !straightBlocked) {
+                return straight;
             }
             const yCh = resolveVerticalChannelY(
                 exitSide,
@@ -350,6 +375,40 @@
                 entryPt,
                 obstacleCtx,
             );
+            if (sameColumn && straightBlocked && util?.pickVerticalChannelX) {
+                const ySpanMin = Math.min(exitPt.y, entryPt.y, yCh);
+                const ySpanMax = Math.max(exitPt.y, entryPt.y, yCh);
+                const candidates = [];
+                for (const xv of [exitPt.x, exitPt.x - 240, exitPt.x + 240]) {
+                    if (Number.isFinite(xv)) {
+                        candidates.push(xv);
+                    }
+                }
+                const clearX = util.pickVerticalChannelX(
+                    candidates,
+                    ySpanMin,
+                    ySpanMax,
+                    obs,
+                    buf,
+                    exitPt.x,
+                );
+                const stub = APPROACH_PAD + 10;
+                const approachFromBelow = yCh > entryPt.y + ALIGN_EPS;
+                const yStub = approachFromBelow
+                    ? entryPt.y + stub
+                    : entryPt.y - stub;
+                const pathSix = dedupeMxOrthoPath([
+                    exitPt,
+                    { x: exitPt.x, y: yCh },
+                    { x: clearX, y: yCh },
+                    { x: clearX, y: yStub },
+                    { x: entryPt.x, y: yStub },
+                    entryPt,
+                ]);
+                if (pathSix.length >= 4) {
+                    return pathSix;
+                }
+            }
             return [
                 exitPt,
                 { x: exitPt.x, y: yCh },
@@ -553,6 +612,80 @@
             maxIter: Number(c.maxAvoidIter) || 24,
             maxPoints: Number(c.maxPathPoints) || 22,
         };
+    }
+
+    /** N→S 4점 직교에서 마지막 수직이 장애물과 겹칠 때 옆 열로 우회 (spec과 동일 기하) */
+    function fixMxNsFourPointLastVerticalThroughObstacles(
+        path,
+        exitSide,
+        entrySide,
+        graph,
+        sourceCell,
+        targetCell,
+    ) {
+        const obstacles = collectObstaclesForEdge(
+            graph,
+            sourceCell,
+            targetCell,
+        );
+        const buf = Number(getEdgeObstacleCfg().obstacleBuffer) || 20;
+        const util = getEdgeObstacleUtil();
+        if (
+            !path ||
+            path.length !== 4 ||
+            exitSide !== 'N' ||
+            entrySide !== 'S' ||
+            !obstacles.length ||
+            !util?.pickVerticalChannelX ||
+            !util.countPathHits
+        ) {
+            return path;
+        }
+        const p0 = path[0];
+        const p1 = path[1];
+        const p2 = path[2];
+        const p3 = path[3];
+        if (!p0 || !p1 || !p2 || !p3) {
+            return path;
+        }
+        if (
+            !near(p0.x, p1.x) ||
+            !near(p1.y, p2.y) ||
+            !near(p2.x, p3.x)
+        ) {
+            return path;
+        }
+        const hitsLast = util.countPathHits([p2, p3], obstacles, buf);
+        if (hitsLast === 0) {
+            return path;
+        }
+        const yMin = Math.min(p2.y, p3.y);
+        const yMax = Math.max(p2.y, p3.y);
+        const candidates = [];
+        for (const x of [p3.x, p2.x, p1.x, p0.x]) {
+            if (Number.isFinite(x)) {
+                candidates.push(x);
+            }
+        }
+        const clearX = util.pickVerticalChannelX(
+            candidates,
+            yMin,
+            yMax,
+            obstacles,
+            buf,
+            p3.x,
+        );
+        if (near(clearX, p3.x)) {
+            return path;
+        }
+        const stub = APPROACH_PAD + 10;
+        const approachFromBelow = p1.y > p3.y + ALIGN_EPS;
+        const yStub = approachFromBelow ? p3.y + stub : p3.y - stub;
+        const mid = makePoint(clearX, p1.y);
+        const bend = makePoint(clearX, yStub);
+        const pre = makePoint(p3.x, yStub);
+        const out = dedupeMxOrthoPath([p0, p1, mid, bend, pre, p3]);
+        return out.length >= 4 ? out : path;
     }
 
     /** 노드 관통 최소화 우선 — 교차 0 목표, 꺾임은 2차 */
@@ -785,6 +918,51 @@
             sourceCell,
             targetCell,
         );
+        if (
+            exitSide === 'N' &&
+            entrySide === 'S' &&
+            obstacleCtx.obstacles.length > 0
+        ) {
+            const hitsR1 = pathObstacleHitCount(
+                path,
+                graph,
+                sourceCell,
+                targetCell,
+            );
+            if (hitsR1 > 0) {
+                path = fixMxNsFourPointLastVerticalThroughObstacles(
+                    path,
+                    exitSide,
+                    entrySide,
+                    graph,
+                    sourceCell,
+                    targetCell,
+                );
+                const hitsMid = pathObstacleHitCount(
+                    path,
+                    graph,
+                    sourceCell,
+                    targetCell,
+                );
+                if (hitsMid > 0) {
+                    const refined2 = refinePathAvoidingObstacles(
+                        path,
+                        graph,
+                        sourceCell,
+                        targetCell,
+                    );
+                    const hits2 = pathObstacleHitCount(
+                        refined2,
+                        graph,
+                        sourceCell,
+                        targetCell,
+                    );
+                    if (hits2 <= hitsMid) {
+                        path = refined2;
+                    }
+                }
+            }
+        }
         applyRoute(
             graph,
             edgeCell,
@@ -800,19 +978,26 @@
     function rerouteAllEdges(graph) {
         if (!graph) return;
         const specRouter = getSpecRouter();
-        if (specRouter?.rerouteAllSpecEdges) {
-            specRouter.rerouteAllSpecEdges(graph);
-        }
         const model = graph.getModel();
         const defaultParent = graph.getDefaultParent();
 
-        function collect(cell) {
+        function walk(cell) {
             const n = model.getChildCount(cell);
             for (let i = 0; i < n; i++) {
                 const ch = model.getChildAt(cell, i);
                 if (model.isEdge(ch) && ch.source && ch.target && ch._edgeData) {
                     const k = ch._edgeData.kind || ch._edgeData.type || '';
-                    if (!isSpecializationHierarchyKind(k)) {
+                    if (isSpecializationHierarchyKind(k)) {
+                        if (specRouter?.routeSpecEdge) {
+                            specRouter.routeSpecEdge(
+                                graph,
+                                ch,
+                                ch._edgeData,
+                                ch.source,
+                                ch.target,
+                            );
+                        }
+                    } else {
                         routeEdge(
                             graph,
                             ch,
@@ -822,11 +1007,11 @@
                         );
                     }
                 } else if (model.isVertex(ch)) {
-                    collect(ch);
+                    walk(ch);
                 }
             }
         }
-        collect(defaultParent);
+        walk(defaultParent);
     }
 
     function getBorderNodeExitStyle(cell) {
@@ -859,6 +1044,126 @@
         return arr.filter(isSpecEdgeCell).length > 1;
     }
 
+    function readBddSpecLaneProximityPx() {
+        const v = Number(ns.Editor?.config?.displaySettings?.bdd?.specLaneProximityPx);
+        return Number.isFinite(v) && v > 0 ? v : 22;
+    }
+
+    function readBddSpecLaneMinSourceSpreadPx() {
+        const g = Number(ns.Editor?.config?.displaySettings?.bdd?.specSiblingGap);
+        const base = Number.isFinite(g) && g > 0 ? g : 120;
+        return Math.max(40, Math.round(base * 0.42));
+    }
+
+    /**
+     * 서로 다른 (source,target) spec이 출발·도착 중심이 가까우면 평행 차선(specLaneOffsetPx).
+     * 동일 (source,target) 다중엣지는 규칙상 뼈대 공유 허용 → 여기서는 분리하지 않음.
+     */
+    function assignSpatiallyOverlappingSpecLaneOffsets(graph, allEdges) {
+        const out = new Set();
+        const STEP =
+            Number(ns.Editor?.config?.displaySettings?.edgeObstacle?.specSpineLaneStep) ||
+            6;
+        const CLOSE = readBddSpecLaneProximityPx();
+        const specEdges = allEdges.filter(isSpecEdgeCell);
+        const n = specEdges.length;
+        if (n < 2) {
+            return out;
+        }
+
+        function centerOf(cell) {
+            const b = getCellAbsBounds(graph, cell);
+            if (!b) {
+                return null;
+            }
+            return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+        }
+
+        function geomClose(ei, ej) {
+            const si = centerOf(ei.source);
+            const ti = centerOf(ei.target);
+            const sj = centerOf(ej.source);
+            const tj = centerOf(ej.target);
+            if (!si || !ti || !sj || !tj) {
+                return false;
+            }
+            return (
+                Math.abs(si.x - sj.x) < CLOSE &&
+                Math.abs(si.y - sj.y) < CLOSE &&
+                Math.abs(ti.x - tj.x) < CLOSE &&
+                Math.abs(ti.y - tj.y) < CLOSE
+            );
+        }
+
+        const parent = new Array(n);
+        for (let i = 0; i < n; i++) {
+            parent[i] = i;
+        }
+
+        function find(a) {
+            if (parent[a] !== a) {
+                parent[a] = find(parent[a]);
+            }
+            return parent[a];
+        }
+
+        function union(a, b) {
+            const ra = find(a);
+            const rb = find(b);
+            if (ra !== rb) {
+                parent[rb] = ra;
+            }
+        }
+
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                const ei = specEdges[i];
+                const ej = specEdges[j];
+                if (ei.source === ej.source && ei.target === ej.target) {
+                    continue;
+                }
+                if (geomClose(ei, ej)) {
+                    union(i, j);
+                }
+            }
+        }
+
+        const groups = new Map();
+        for (let i = 0; i < n; i++) {
+            const r = find(i);
+            if (!groups.has(r)) {
+                groups.set(r, []);
+            }
+            groups.get(r).push(specEdges[i]);
+        }
+
+        for (const [, cluster] of groups) {
+            if (cluster.length < 2) {
+                continue;
+            }
+            const pairKeys = new Set(
+                cluster.map((e) => `${e.source.id}\x00${e.target.id}`),
+            );
+            if (pairKeys.size <= 1) {
+                continue;
+            }
+            cluster.sort((a, b) => {
+                const ida = String(a._edgeData?.id || a.id || '');
+                const idb = String(b._edgeData?.id || b.id || '');
+                return ida.localeCompare(idb);
+            });
+            const m = cluster.length;
+            for (let k = 0; k < m; k++) {
+                const e = cluster[k];
+                const ed = e._edgeData || {};
+                e._edgeData = ed;
+                ed.specLaneOffsetPx = (k - (m - 1) / 2) * STEP;
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
     /** 규칙1: 동일 부모 S면 분산, 자식 N은 중앙(공유 뼈대) */
     function spreadSpecEntriesOnTarget(graph, model, edges, touched, byPair) {
         const list = edges
@@ -873,10 +1178,33 @@
             return ba.x + ba.w / 2 - (bb.x + bb.w / 2);
         });
         const n = list.length;
+        const minSpread = readBddSpecLaneMinSourceSpreadPx();
+        let minCx = Infinity;
+        let maxCx = -Infinity;
+        for (const e of list) {
+            const b = getCellAbsBounds(graph, e.source);
+            if (!b) {
+                continue;
+            }
+            const cx = b.x + b.w / 2;
+            minCx = Math.min(minCx, cx);
+            maxCx = Math.max(maxCx, cx);
+        }
+        const needExitSpread =
+            Number.isFinite(minCx) &&
+            Number.isFinite(maxCx) &&
+            maxCx - minCx < minSpread;
         for (let i = 0; i < n; i++) {
             const frac = (i + 1) / (n + 1);
             setEdgeAnchor(model, list[i], 'entry', 'S', frac, touched);
-            setEdgeAnchor(model, list[i], 'exit', 'N', DEFAULT_FRAC, touched);
+            setEdgeAnchor(
+                model,
+                list[i],
+                'exit',
+                'N',
+                needExitSpread ? frac : DEFAULT_FRAC,
+                touched,
+            );
         }
     }
 
@@ -904,7 +1232,7 @@
         }
     }
 
-    /** 규칙1: 한 자식 → 다중 부모 — exit(N)만 분산 */
+    /** 규칙1: 한 자식 → 다중 부모 — exit(N) 분산, 타깃 중심이 좁으면 entry(S)도 동일 비율 분산(차선) */
     function spreadSpecExitsOnSource(graph, model, edges, touched) {
         const list = edges.filter(isSpecEdgeCell);
         const targets = new Set(list.map((e) => e.target?.id));
@@ -917,10 +1245,33 @@
             return ba.x + ba.w / 2 - (bb.x + bb.w / 2);
         });
         const n = list.length;
+        const minSpread = readBddSpecLaneMinSourceSpreadPx();
+        let minCx = Infinity;
+        let maxCx = -Infinity;
+        for (const e of list) {
+            const b = getCellAbsBounds(graph, e.target);
+            if (!b) {
+                continue;
+            }
+            const cx = b.x + b.w / 2;
+            minCx = Math.min(minCx, cx);
+            maxCx = Math.max(maxCx, cx);
+        }
+        const needEntrySpread =
+            Number.isFinite(minCx) &&
+            Number.isFinite(maxCx) &&
+            maxCx - minCx < minSpread;
         for (let i = 0; i < n; i++) {
             const frac = (i + 1) / (n + 1);
             setEdgeAnchor(model, list[i], 'exit', 'N', frac, touched);
-            setEdgeAnchor(model, list[i], 'entry', 'S', DEFAULT_FRAC, touched);
+            setEdgeAnchor(
+                model,
+                list[i],
+                'entry',
+                'S',
+                needEntrySpread ? frac : DEFAULT_FRAC,
+                touched,
+            );
         }
     }
 
@@ -1015,6 +1366,12 @@
             }
             for (const [, group] of bySource) {
                 spreadSpecExitsOnSource(graph, model, group, touched);
+            }
+            for (const c of assignSpatiallyOverlappingSpecLaneOffsets(
+                graph,
+                allEdges,
+            )) {
+                touched.add(c);
             }
             for (const [, group] of bySource) {
                 spreadGroup(group, 'exit');

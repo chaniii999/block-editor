@@ -146,6 +146,11 @@
             spineDeepBottomPad: 4,
             /** 부모→자식→… 단일 체인 스파인 레이아웃 최소 깊이 (test-4 7단 등) */
             containmentSpineMinChain: 2,
+            /**
+             * 서로 다른 (source,target) spec인데 출발·도착 중심이 모두 이(px) 이내면
+             * 평행 차선(specLaneOffsetPx) 분리 (p_docs/커스텀_규칙.md 규칙 3)
+             */
+            specLaneProximityPx: 22,
         },
 
         // ─── mx 직교 엣지 장애물 회피 (edgeObstacleUtil.js · MxEdgeBuilder) ─
