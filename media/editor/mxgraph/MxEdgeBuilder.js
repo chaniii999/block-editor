@@ -1446,6 +1446,7 @@
             return null;
         }
         if (edgeTypeLower === 'containment') return null;
+        if (edge.nestedSpecChrome === true) return null;
 
         const targetCellPreview = cellMap[targetId];
         if (

@@ -236,6 +236,9 @@
             isLibraryElement: n.isLibraryElement || undefined,
             comment: n.comment || undefined,
             documentation: n.documentation || extractDocumentationFromCompartments(n) || undefined,
+            nestedSpecParentIds: n.nestedSpecParentIds || undefined,
+            nestedSpecParentNames: n.nestedSpecParentNames || undefined,
+            specializationTargets: n.specializationTargets || undefined,
             // PropertyJsonStore 오버라이드로 병합된 색상 속성
             fillColor: n.fillColor || undefined,
             strokeColor: n.strokeColor || undefined,

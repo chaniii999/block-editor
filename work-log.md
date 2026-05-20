@@ -5,6 +5,56 @@ SELab Block Editor — `feature/layout-pipeline` 브랜치 기준.
 
 ---
 
+## 2026-05-20 — nested spec 크롬 모드 (포함=상속 부모)
+
+### 지시
+
+> containment 부모 안에 있으면서 같은 부모에게 specialization인 경우(test-9 `SCADA`⊂`GridController`, `SCADA`→`GridController`) — **상속선 제거**, 헤더에 **🔼**로 타입 상속 표시, 선택 시 **부모 노드 하이라이트**.  
+> spec 라우터 전역 동적 앵커·헤더 🔼+접기 `precompute`/`spacingRight` 확장은 **롤백** (이번 커밋 범위 밖).
+
+### 수정
+
+| 파일 | 변경 요지 |
+|------|------------|
+| `src/panel/BlockModelBuilder.js` | `applyNestedSpecChrome`: `child.parent === spec.target`이면 `nestedSpecChrome`·`nestedSpecParentIds/Names` |
+| `media/editor/model/nestedSpecChrome.js` | normalize 시 동일 규칙 재적용(웹뷰) |
+| `media/editor/model/nodeTransformer.js` | `nestedSpecParent*` 필드 전달 |
+| `media/editor/model/edgeTransformer.js` | `nestedSpecChrome` 연결 전달 |
+| `media/editor/model/normalizer.js` | 변환 후 `applyNestedSpecChrome` 호출 |
+| `src/HtmlGenerator.js` | `nestedSpecChrome.js` 스크립트 로드 |
+| `media/editor/mxgraph/MxEdgeBuilder.js` | `nestedSpecChrome` 엣지 미생성 |
+| `media/editor/mxgraph/MxLabelUtils.js` | 헤더 `🔼` + tooltip «포함 부모 타입 상속: …» |
+| `media/editor/mxgraph/MxVertexBuilder.js` | `nestedSpecParentNames` → `formatLabel` |
+| `media/editor/mxgraph/MxNeighborHighlight.js` | 선택 시 `nestedSpecParentIds` 부모를 연결 하이라이트(청록) |
+
+### 개선 내용
+
+- **문제:** 부모 박스 안 자식이 부모 타입을 상속할 때 N→S spec 선이 텍스트·compartment 관통·U자 우회(test-9).
+- **표현:** 구조는 containment(중첩), 타입은 헤더 크롬(🔼); 일반 spec(`Car`→`Vehicle`, 형제 `Gateway`→`Router`)은 기존 빈 삼각형 엣지 유지.
+- **파이프라인:** `buildBlockModel`에서 플래그 부여 후 `nodeTransformer`가 필드를 버리던 버그를 전달·`normalizer` 보강으로 해소.
+
+### 롤백(미포함)
+
+- `specEdgeRouter` 형제/전역 최근접 면·S 출구 조건 분기
+- `layout.js` / `displaySettings` / `MxVertexBuilder` 헤더 🔼·접기 우측 여백 `precompute`·`spacingRight`
+
+### 확인
+
+- `npm run build` 통과
+- F5 test-9: `SCADA` 헤더 🔼, `SCADA`→`GridController` 상속선 없음, `SCADA` 선택 시 `GridController` 테두리 하이라이트
+
+### 커밋 메시지 (안)
+
+```
+feat(ui): 포함 부모와 동일한 spec는 헤더 🔼·선 숨김
+
+- BlockModelBuilder·nestedSpecChrome: containment 부모=spec 부모일 때만 크롬 모드
+- spec 엣지 미렌더, 헤더 🔼·선택 시 부모 연결 하이라이트
+- node/edgeTransformer·normalizer로 웹뷰까지 플래그 전달
+```
+
+---
+
 ## 2026-05-20 — 하이라이트 엣지 z-order 최상단
 
 ### 지시

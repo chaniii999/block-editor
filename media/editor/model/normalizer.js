@@ -117,6 +117,12 @@
         // 2단계: 엣지 변환
         const connections = transformEdges(edges);
 
+        const applyNestedSpec =
+            ns.Editor.model.nestedSpecChrome?.applyNestedSpecChrome;
+        if (typeof applyNestedSpec === 'function') {
+            applyNestedSpec(elements, connections);
+        }
+
         // 2.4단계: FeatureTyping → 타겟 푸터 텍스트·소스 usage 숨김
         applyFeatureTypingFooters(elements, connections);
 

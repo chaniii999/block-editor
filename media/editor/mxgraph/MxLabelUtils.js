@@ -10,6 +10,8 @@
     ns.MxGraph = ns.MxGraph || {};
     ns.MxGraph.labelUtils = ns.MxGraph.labelUtils || {};
 
+    const NESTED_SPEC_HEADER_EMOJI = '🔼';
+
     // 로그 함수
     function log(prefix, ...args) {
         try {
@@ -43,6 +45,7 @@
             declaredType,
             stereotype: customStereotype,
             specializationTargets,
+            nestedSpecParentNames,
             nodeId,
             hasAssociations,
         } = options;
@@ -108,9 +111,19 @@
             displayName = `${name} : ${declaredType}`;
         }
         
-        // SysOn 스타일: Definition 타입에 specialization 관계 표시
-        // 예: "TrafficLightGo :> TrafficLight"
-        if (Array.isArray(specializationTargets) && specializationTargets.length > 0 && typeLower.endsWith('definition')) {
+        // containment 부모 = spec 부모: 상속선 대신 헤더 이모지 (선택 시 부모 하이라이트)
+        if (
+            Array.isArray(nestedSpecParentNames) &&
+            nestedSpecParentNames.length > 0
+        ) {
+            const tip = `포함 부모 타입 상속: ${nestedSpecParentNames.join(', ')}`;
+            displayName = `<span title="${tip}">${NESTED_SPEC_HEADER_EMOJI}</span> ${displayName}`;
+        } else if (
+            Array.isArray(specializationTargets) &&
+            specializationTargets.length > 0 &&
+            typeLower.endsWith('definition')
+        ) {
+            // SysOn 스타일: "TrafficLightGo :> TrafficLight"
             displayName = `${displayName} :> ${specializationTargets.join(', ')}`;
         }
         

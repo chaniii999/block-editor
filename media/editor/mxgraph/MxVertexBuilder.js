@@ -197,6 +197,7 @@
                 isPortion: node.isPortion,
                 portionKind: node.portionKind,
                 specializationTargets: node.specializationTargets,
+                nestedSpecParentNames: node.nestedSpecParentNames,
                 ...getAssociationLabelOptions(node),
             });
         }

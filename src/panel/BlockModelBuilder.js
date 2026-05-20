@@ -56,6 +56,50 @@ function isBlockEdge(edge) {
     return BLOCK_EDGE_KINDS.has(normalizeEdgeKind(edge));
 }
 
+function isSpecEdgeKind(edgeKind) {
+    const k = normalizeKind(edgeKind);
+    return (
+        k === 'specialization' ||
+        k === 'inheritance' ||
+        k === 'generalization' ||
+        k.includes('specialzation')
+    );
+}
+
+/** containment 부모 안에 있으면서 같은 부모에게 spec — UI는 헤더 크롬, 선 숨김 */
+function applyNestedSpecChrome(nodes, edges) {
+    const nodeById = new Map();
+    for (const node of nodes) {
+        if (node?.id) {
+            nodeById.set(node.id, node);
+        }
+    }
+    for (const edge of edges) {
+        if (!isSpecEdgeKind(normalizeEdgeKind(edge))) {
+            continue;
+        }
+        const child = nodeById.get(edge.source);
+        const parentId = edge.target;
+        if (!child || !parentId || String(child.parent) !== String(parentId)) {
+            continue;
+        }
+        edge.nestedSpecChrome = true;
+        if (!Array.isArray(child.nestedSpecParentIds)) {
+            child.nestedSpecParentIds = [];
+        }
+        if (!Array.isArray(child.nestedSpecParentNames)) {
+            child.nestedSpecParentNames = [];
+        }
+        if (!child.nestedSpecParentIds.includes(parentId)) {
+            child.nestedSpecParentIds.push(parentId);
+            const parentNode = nodeById.get(parentId);
+            child.nestedSpecParentNames.push(
+                normalizeText(parentNode?.name, parentId),
+            );
+        }
+    }
+}
+
 function buildLookup(nodes) {
     const nodeByKey = new Map();
     const aliasMap = new Map();
@@ -367,6 +411,8 @@ function buildBlockModel(model) {
             type: 'containment',
         });
     }
+
+    applyNestedSpecChrome(filteredNodes, filteredEdges);
 
     return {
         nodes: filteredNodes,

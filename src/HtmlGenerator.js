@@ -281,6 +281,7 @@ class HtmlGenerator {
     <script nonce="${nonce}" src="${es('model/portBorderNodeHandler.js')}"></script>
     <script nonce="${nonce}" src="${es('model/nodeTransformer.js')}"></script>
     <script nonce="${nonce}" src="${es('model/edgeTransformer.js')}"></script>
+    <script nonce="${nonce}" src="${es('model/nestedSpecChrome.js')}"></script>
     <script nonce="${nonce}" src="${es('model/normalizer.js')}"></script>
     <script nonce="${nonce}" src="${es('model/index.js')}"></script>
     <!-- Boot -->

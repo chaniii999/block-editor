@@ -45,6 +45,9 @@
         if (typeof e.label === 'string' && e.label.trim().length > 0) {
             connection.label = e.label;
         }
+        if (e.nestedSpecChrome === true) {
+            connection.nestedSpecChrome = true;
+        }
 
         return connection;
     }

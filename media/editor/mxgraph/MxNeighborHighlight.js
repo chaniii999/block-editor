@@ -122,6 +122,35 @@
     }
 
     /** JSON associations — mxGraph에 없는 연관관계만 */
+    function collectNestedSpecParentIds(vertexCell, diagram) {
+        const out = new Set();
+        const data = vertexCell?._nodeData;
+        const ids = data?.nestedSpecParentIds;
+        if (Array.isArray(ids)) {
+            for (let i = 0; i < ids.length; i++) {
+                out.add(String(ids[i]));
+            }
+            return out;
+        }
+        if (!diagram?.elements || !vertexCell) {
+            return out;
+        }
+        const key = data?.id != null ? String(data.id) : cellKey(vertexCell);
+        for (const el of diagram.elements) {
+            if (!el?.id || String(el.id) !== key) {
+                continue;
+            }
+            const fromEl = el.nestedSpecParentIds;
+            if (Array.isArray(fromEl)) {
+                for (let j = 0; j < fromEl.length; j++) {
+                    out.add(String(fromEl[j]));
+                }
+            }
+            break;
+        }
+        return out;
+    }
+
     function collectAssociationPartnerIds(nodeId, diagram) {
         const out = new Set();
         if (!diagram || !Array.isArray(diagram.associations)) {
@@ -225,6 +254,13 @@
                 continue;
             }
             push(v, false, true, false, false);
+            for (const parentId of collectNestedSpecParentIds(v, diagram)) {
+                if (primaryKeys.has(parentId) || associationKeys.has(parentId)) {
+                    continue;
+                }
+                const parentCell = resolveCellByNodeId(graph, parentId);
+                push(parentCell, false, false, false, true);
+            }
             let edgeList = [];
             if (typeof graph.getEdges === 'function') {
                 edgeList = graph.getEdges(v, null, true, true, true) || [];
